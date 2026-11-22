@@ -1,0 +1,256 @@
+{
+  "client": "@openai/codex@0.171.0-linux-x64",
+  "recorded_at": "2026-11-22T15:49:05.826204+00:00",
+  "source": "record-official-session.mjs. Orders without a cookie omit that field. consume_credit is derived from the official backend client.",
+  "ops": {
+    "usage": {
+      "method": "GET",
+      "path": "/backend-api/wham/usage",
+      "header_order": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "x-openai-codex-luna-reserve",
+        "accept",
+        "accept-encoding",
+        "host"
+      ],
+      "header_order_with_cookie": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "x-openai-codex-luna-reserve",
+        "accept",
+        "accept-encoding",
+        "cookie",
+        "host"
+      ]
+    },
+    "reset_credits": {
+      "method": "GET",
+      "path": "/backend-api/wham/rate-limit-reset-credits",
+      "header_order": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "accept",
+        "accept-encoding",
+        "host"
+      ],
+      "header_order_with_cookie": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "accept",
+        "accept-encoding",
+        "cookie",
+        "host"
+      ]
+    },
+    "accounts_check": {
+      "method": "GET",
+      "path": "/backend-api/wham/accounts/check",
+      "header_order": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "accept",
+        "accept-encoding",
+        "host"
+      ]
+    },
+    "models": {
+      "method": "GET",
+      "path": "/backend-api/codex/models",
+      "header_order": [
+        "version",
+        "authorization",
+        "chatgpt-account-id",
+        "originator",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "host"
+      ]
+    },
+    "search": {
+      "method": "POST",
+      "path": "/backend-api/codex/alpha/search",
+      "header_order": [
+        "version",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "host",
+        "content-length"
+      ],
+      "header_order_with_cookie": [
+        "version",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "cookie",
+        "host",
+        "content-length"
+      ],
+      "body_keys": [
+        "id",
+        "model",
+        "input",
+        "commands",
+        "settings",
+        "max_output_tokens"
+      ]
+    },
+    "images_generate": {
+      "method": "POST",
+      "path": "/backend-api/codex/images/generations",
+      "header_order": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "host",
+        "content-length"
+      ],
+      "header_order_with_cookie": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "cookie",
+        "host",
+        "content-length"
+      ],
+      "body_keys": [
+        "prompt",
+        "background",
+        "model",
+        "quality",
+        "size"
+      ]
+    },
+    "images_edit": {
+      "method": "POST",
+      "path": "/backend-api/codex/images/edits",
+      "header_order": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "host",
+        "content-length"
+      ],
+      "header_order_with_cookie": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "accept-encoding",
+        "cookie",
+        "host",
+        "content-length"
+      ],
+      "body_keys": [
+        "images",
+        "prompt",
+        "background",
+        "model",
+        "quality",
+        "size"
+      ]
+    }
+  },
+  "consume_reset_credit": {
+    "derived_header_order": [
+      "user-agent",
+      "authorization",
+      "chatgpt-account-id",
+      "content-type",
+      "accept",
+      "accept-encoding",
+      "cookie",
+      "host",
+      "content-length"
+    ]
+  },
+  "cookies": {
+    "responses_http_header_order": [
+      "version",
+      "x-codex-beta-features",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-openai-internal-codex-responses-lite",
+      "x-codex-routing-hint",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "accept",
+      "content-encoding",
+      "content-type",
+      "authorization",
+      "chatgpt-account-id",
+      "originator",
+      "user-agent",
+      "accept-encoding",
+      "cookie",
+      "host",
+      "content-length"
+    ],
+    "responses_websocket_header_order": [
+      "host",
+      "connection",
+      "upgrade",
+      "sec-websocket-version",
+      "sec-websocket-key",
+      "cookie",
+      "chatgpt-account-id",
+      "authorization",
+      "user-agent",
+      "originator",
+      "version",
+      "x-codex-beta-features",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-codex-routing-hint",
+      "openai-beta",
+      "sec-websocket-extensions"
+    ]
+  }
+}

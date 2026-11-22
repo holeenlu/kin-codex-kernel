@@ -1,0 +1,15 @@
+[package]
+name = "tap-identity"
+description = "出站身分：依帳號環境照官方客戶端的規則組出 originator 與 User-Agent（純函式，不含 IO）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[dependencies]
+tap-contract.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

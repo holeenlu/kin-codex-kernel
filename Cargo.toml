@@ -1,0 +1,103 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/contract",
+    "crates/identity",
+    "crates/credentials",
+    "crates/upstream",
+    "crates/registry",
+    "crates/api",
+    "crates/kernel",
+    "xtask",
+]
+default-members = [
+    "crates/contract",
+    "crates/identity",
+    "crates/credentials",
+    "crates/upstream",
+    "crates/registry",
+    "crates/api",
+    "crates/kernel",
+]
+
+[workspace.package]
+version = "0.4.3"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+license-file = "LICENSE"
+repository = "https://github.com/holeenlu/tap-codex-kernel"
+
+# 所有第三方相依的版本集中在這裡，各 crate 以 `workspace = true` 引用。
+[workspace.dependencies]
+tap-contract = { path = "crates/contract" }
+tap-identity = { path = "crates/identity" }
+tap-credentials = { path = "crates/credentials" }
+tap-upstream = { path = "crates/upstream" }
+tap-registry = { path = "crates/registry" }
+tap-api = { path = "crates/api" }
+
+anyhow = "1"
+bytes = "1"
+flate2 = "1"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+http-body = "1"
+http-body-util = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = "0.11"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7", default-features = false }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "env-filter", "fmt", "json"] }
+
+# 出站 HTTP 與 TLS：版本與官方 Codex CLI rust-v0.171.0 的 Cargo.lock 相同（擬真基準，見 fidelity/README.md）。
+# 官方的 HTTP 請求走 reqwest 預設的 native-tls，Linux 發行版以 vendored OpenSSL 靜態連結、不送 ALPN；
+# 這裡只開 native-tls-vendored，不開 native-tls-alpn，也不讓 reqwest 改用 rustls。
+# `cookies`：官方同樣開啟（`codex-rs/Cargo.toml`），Cloudflare 與 `__oailb` 路由 cookie 用 reqwest 的 Jar 保存。
+reqwest = { version = "=0.12.28", default-features = false, features = ["charset", "cookies", "gzip", "http2", "native-tls-vendored", "socks", "stream", "zstd"] }
+native-tls = "=0.2.14"
+# OpenSSL 綁定與 0.171.0 的官方鎖檔一致。
+openssl = "=0.10.82"
+openssl-sys = "=0.9.118"
+# WebSocket：官方用 openai-oss-forks 的 tokio-tungstenite／tungstenite 分支（permessage-deflate 由分支提供），
+# TLS 走 rustls 加 aws-lc-rs（版本同官方 rust-v0.171.0 的 Cargo.lock）。不開 tokio-tungstenite 的 `connect`／`proxy`：
+# 那會讀環境變數裡的代理；連線由核心自己建立（直連或 socks5h），再交給 `client_async_tls_with_config`。
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "7447c427513cfe685f236e1ac0513c4ea3dd9c0b", default-features = false, features = ["handshake", "rustls-tls-native-roots", "stream"] }
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "bc589d684755a8c02da0fc7e58d0861cbfc306f1", default-features = false, features = ["deflate", "handshake"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["aws_lc_rs", "logging", "prefer-post-quantum", "std", "tls12"] }
+rustls-native-certs = "=0.8.3"
+# rustls 的 provider 與 tokio-rustls 也釘在官方版本：provider 決定群組與簽章演算法。
+aws-lc-rs = "=1.18.1"
+tokio-rustls = { version = "=0.26.4", default-features = false }
+tokio-socks = "0.5"
+# 官方鎖定 0.13.3，有 RUSTSEC-2026-0391（context 重用時資料外洩）；0.13.4 修正，壓縮等級與格式不變。
+zstd = "=0.13.4"
+
+# 全 workspace 一致的品質門檻：禁止 unsafe；正式程式碼禁止 unwrap／expect（測試另由 clippy.toml 放行）。
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+large_futures = "warn"
+needless_pass_by_value = "warn"
+redundant_clone = "warn"
+
+[profile.release]
+# 與上游核心的建置設定一致：去除符號；發布時另以 --remap-path-prefix 重映射原始碼路徑。
+strip = "symbols"
+lto = "thin"
+codegen-units = 1

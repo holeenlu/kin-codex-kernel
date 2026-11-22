@@ -1,0 +1,39 @@
+# cargo-deny：供應鏈關卡。CI 每次都跑，任何一項不過就不能合併或發布。
+
+[advisories]
+# 有安全公告的相依一律擋下；確定不受影響時，才在這裡列出公告編號並寫明理由。
+ignore = []
+
+[licenses]
+# 只接受與私有發布相容的寬鬆授權。新增相依若用到其他授權，要先評估再加。
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.9
+# 白名單是政策，不要求每一種授權目前都用得到。
+unused-allowed-license = "allow"
+# 本倉庫自己的 crate 不發布，不檢查授權。
+private = { ignore = true }
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# workspace 內部 crate 以路徑相依、不帶版本號，這是正常做法，不算萬用版本。
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# 日後以 git 版本引用官方 openai/codex 的 crate 時，在這裡明確加入。
+# 官方 Codex CLI 使用的 WebSocket 分支（permessage-deflate）。
+allow-git = [
+    "https://github.com/openai-oss-forks/tokio-tungstenite",
+    "https://github.com/openai-oss-forks/tungstenite-rs",
+]

@@ -1,0 +1,6 @@
+# 與官方 openai/codex rust-v0.171.0（codex-rs/rust-toolchain.toml）一致。
+# 升級時與釘選的官方 crate 版本一起調整，並重跑擬真比對。
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"
