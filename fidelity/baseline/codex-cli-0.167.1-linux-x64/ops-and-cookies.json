@@ -1,0 +1,302 @@
+{
+  "recorded": "2026-11-16",
+  "client": "codex-cli 0.167.1 linux-x64 (npm, codex sha256 dd5bfdf1…d461e8a02)",
+  "method": "record-official-session.mjs tui with REC_COOKIES=1 (and REC_WEBSOCKET=reject for HTTP Responses)",
+  "cookies": {
+    "offered": [
+      "__cf_bm",
+      "__oailb",
+      "cf_clearance",
+      "__Secure-next-auth.session-token",
+      "oai-did"
+    ],
+    "kept": [
+      "__cf_bm",
+      "__oailb",
+      "cf_clearance"
+    ],
+    "value_order": "not stable between runs (jar order)",
+    "http_position": "after every explicitly set header, right before host",
+    "websocket_position": "inserted last; the tungstenite fork moves the last five headers to the front reversed, so cookie comes right after Sec-WebSocket-Key",
+    "responses_http_header_order": [
+      "version",
+      "x-codex-beta-features",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-openai-internal-codex-responses-lite",
+      "x-codex-routing-hint",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "accept",
+      "content-encoding",
+      "content-type",
+      "authorization",
+      "chatgpt-account-id",
+      "originator",
+      "user-agent",
+      "cookie",
+      "host",
+      "content-length"
+    ],
+    "responses_websocket_header_order": [
+      "host",
+      "connection",
+      "upgrade",
+      "sec-websocket-version",
+      "sec-websocket-key",
+      "cookie",
+      "chatgpt-account-id",
+      "authorization",
+      "user-agent",
+      "originator",
+      "version",
+      "x-codex-beta-features",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-codex-routing-hint",
+      "openai-beta",
+      "sec-websocket-extensions"
+    ]
+  },
+  "ops": {
+    "usage": {
+      "method": "GET",
+      "path": "/backend-api/wham/usage",
+      "query": null,
+      "header_order": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "x-openai-codex-luna-reserve",
+        "accept",
+        "host"
+      ],
+      "header_order_with_cookie": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "x-openai-codex-luna-reserve",
+        "accept",
+        "cookie",
+        "host"
+      ],
+      "originator": null,
+      "user_agent_kind": "codex-tui",
+      "extra": {
+        "x-openai-codex-luna-reserve": "1"
+      }
+    },
+    "reset_credits": {
+      "method": "GET",
+      "path": "/backend-api/wham/rate-limit-reset-credits",
+      "query": null,
+      "header_order": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "accept",
+        "host"
+      ],
+      "header_order_with_cookie": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "accept",
+        "cookie",
+        "host"
+      ],
+      "originator": null,
+      "user_agent_kind": "codex-tui"
+    },
+    "accounts_check": {
+      "method": "GET",
+      "path": "/backend-api/wham/accounts/check",
+      "query": null,
+      "header_order": [
+        "user-agent",
+        "authorization",
+        "chatgpt-account-id",
+        "accept",
+        "host"
+      ],
+      "header_order_with_cookie": null,
+      "originator": null,
+      "user_agent_kind": "codex_cli_rs"
+    },
+    "models": {
+      "method": "GET",
+      "path": "/backend-api/codex/models",
+      "query": "client_version=0.167.1",
+      "header_order": [
+        "version",
+        "authorization",
+        "chatgpt-account-id",
+        "originator",
+        "user-agent",
+        "accept",
+        "host"
+      ],
+      "header_order_with_cookie": [
+        "version",
+        "authorization",
+        "chatgpt-account-id",
+        "originator",
+        "user-agent",
+        "accept",
+        "cookie",
+        "host"
+      ],
+      "originator": "codex-tui",
+      "user_agent_kind": "codex-tui"
+    },
+    "search": {
+      "method": "POST",
+      "path": "/backend-api/codex/alpha/search",
+      "header_order_with_cookie": [
+        "version",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "cookie",
+        "host",
+        "content-length"
+      ],
+      "header_order": [
+        "version",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "host",
+        "content-length"
+      ],
+      "body_keys": [
+        "id",
+        "model",
+        "input",
+        "commands",
+        "settings",
+        "max_output_tokens"
+      ],
+      "content_encoding": null,
+      "trigger": "REC_TOOL=search: the model calls web.run; the CLI sends this request itself"
+    },
+    "images_generate": {
+      "method": "POST",
+      "path": "/backend-api/codex/images/generations",
+      "header_order_with_cookie": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "cookie",
+        "host",
+        "content-length"
+      ],
+      "header_order": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "host",
+        "content-length"
+      ],
+      "body_keys": [
+        "prompt",
+        "background",
+        "model",
+        "quality",
+        "size"
+      ],
+      "content_encoding": null,
+      "trigger": "REC_TOOL=imagegen: the model calls image_gen.imagegen; the CLI sends this request itself"
+    },
+    "images_edit": {
+      "method": "POST",
+      "path": "/backend-api/codex/images/edits",
+      "header_order_with_cookie": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "cookie",
+        "host",
+        "content-length"
+      ],
+      "header_order": [
+        "version",
+        "x-codex-image-turn-id",
+        "x-codex-turn-metadata",
+        "authorization",
+        "chatgpt-account-id",
+        "content-type",
+        "originator",
+        "user-agent",
+        "accept",
+        "host",
+        "content-length"
+      ],
+      "body_keys": [
+        "images",
+        "prompt",
+        "background",
+        "model",
+        "quality",
+        "size"
+      ],
+      "content_encoding": null,
+      "trigger": "REC_TOOL=imageedit: the model calls image_gen.imagegen; the CLI sends this request itself"
+    }
+  },
+  "consume_reset_credit": {
+    "method": "POST",
+    "path": "/backend-api/wham/rate-limit-reset-credits/consume",
+    "source": "codex-rs/backend-client/src/client/rate_limit_resets.rs (not recorded: the TUI only consumes on a user action)",
+    "body": "{\"redeem_request_id\": ..., \"credit_id\": optional}",
+    "derived_header_order": [
+      "user-agent",
+      "authorization",
+      "chatgpt-account-id",
+      "content-type",
+      "accept",
+      "cookie",
+      "host",
+      "content-length"
+    ]
+  },
+  "findings": [
+    "帳號操作的身分：backend-client 的請求（usage、reset credits、accounts/check）沒有 originator 標頭，只有 User-Agent；會話中的 User-Agent 與推理相同（codex-tui）。",
+    "models 帶 version 與 originator（codex-api client）。",
+    "usage 在 TUI 帶 x-openai-codex-luna-reserve: 1。",
+    "reqwest 預設的 accept: */* 出現在所有明確標頭之後、cookie 之前。",
+    "search、images 由 codex-api 送出：version 在最前；x-codex-image-turn-id（只有圖片）與 x-codex-turn-metadata 在 authorization 之前；content-type、originator、user-agent、accept 之後。本體不壓縮。",
+    "images/edits 也是 JSON：參考圖以 data: URL 放在 images[].image_url，不是 multipart。",
+    "這三個請求的 x-codex-turn-metadata 沒有 installation_id。"
+  ]
+}

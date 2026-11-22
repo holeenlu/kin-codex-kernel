@@ -1,0 +1,70 @@
+{
+  "result": {
+    "ok": false,
+    "status": 200,
+    "sendState": "sent",
+    "terminalState": "incomplete",
+    "body": {
+      "type": "message",
+      "role": "assistant",
+      "content": []
+    },
+    "headers": {
+      "content-type": "text/event-stream",
+      "x-model": "gpt-5.5",
+      "x-terminal-state": "verified",
+      "x-codex-primary-used-percent": "12",
+      "x-codex-primary-window-minutes": "300",
+      "x-codex-secondary-used-percent": "3",
+      "x-codex-secondary-window-minutes": "10080",
+      "transfer-encoding": "chunked",
+      "date": "Mon, 16 Nov 2026 02:47:03 GMT"
+    }
+  },
+  "stderr": "codex-kernel listening on /tmp/kin-tests/103-MOcIJE/kin-kernel-contract-XBNtxB/vms/vm-contract/run/codex-kernel.sock\n",
+  "eventTypes": [
+    "response.created",
+    "response.output_text.delta",
+    "response.completed"
+  ],
+  "outbound": [
+    {
+      "method": "POST",
+      "path": "/backend-api/codex/responses",
+      "headers": {
+        "accept": "text/event-stream",
+        "authorization": "<redacted Bearer len=18>",
+        "chatgpt-account-id": "acct-contract",
+        "content-encoding": "zstd",
+        "content-length": "129",
+        "content-type": "application/json",
+        "host": "127.0.0.1:44573",
+        "openai-beta": "responses_websockets=2026-02-06",
+        "originator": "codex_cli_rs",
+        "session-id": "sess-contract",
+        "user-agent": "codex_cli_rs/0.167.1 (linux x86_64)",
+        "version": "0.167.1",
+        "x-codex-routing-hint": "model=gpt-5.5",
+        "x-codex-turn-id": "ec2a7a23-c888-4cd1-bfaf-456045322483"
+      },
+      "body": {
+        "input": [
+          {
+            "content": [
+              {
+                "text": "ping",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "instructions": "contract test",
+        "model": "gpt-5.5",
+        "store": false,
+        "stream": true
+      }
+    }
+  ]
+}

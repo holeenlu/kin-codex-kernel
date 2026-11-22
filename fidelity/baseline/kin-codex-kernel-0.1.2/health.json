@@ -1,0 +1,15 @@
+{
+  "health": {
+    "ok": true,
+    "status": 200,
+    "accounts": 1,
+    "device_id": "1062c171-2a0b-4c6e-8ca2-d039624fc87d",
+    "engine": "codex",
+    "proxy_ok": true,
+    "reachable": true,
+    "vm_id": "vm-contract",
+    "worker_version": "0.1.2"
+  },
+  "describe": null,
+  "reference": true
+}

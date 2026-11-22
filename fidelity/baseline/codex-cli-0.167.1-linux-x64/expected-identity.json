@@ -1,0 +1,204 @@
+{
+  "client": "@openai/codex 0.167.1 linux-x64, interactive TUI (codex <prompt>)",
+  "source": "session-tui.json",
+  "decided": "2026-11-16: align with the interactive TUI identity",
+  "responses": {
+    "originator": "codex-tui",
+    "version": "0.167.1",
+    "user_agent_pattern": "^codex-tui/0\\.167\\.1 \\((?!Mac OS|Windows)[^;()]+ [^;()]+; [^()]+\\) [A-Za-z0-9._/-]+ \\(codex-tui; 0\\.167\\.1\\)$",
+    "user_agent_example": "codex-tui/0.167.1 (Debian 12.0.0; x86_64) xterm-256color (codex-tui; 0.167.1)"
+  },
+  "notes": [
+    "The OS segment must name a Linux distribution: the TLS baseline is the linux-x64 build.",
+    "Bootstrap calls made before the TUI's app-server client starts (accounts check, first model list, plugin lists) use the default originator codex_cli_rs without the client suffix; see fidelity/README.md."
+  ],
+  "composition": {
+    "decided": "2026-11-16: the kernel composes the User-Agent from the account environment",
+    "format": "codex-tui/{version} ({os_type} {os_version}; {arch}) {terminal} (codex-tui; {version})",
+    "environment_schema": {
+      "os_release": {
+        "id": "os-release ID, e.g. ubuntu",
+        "version_id": "os-release VERSION_ID, e.g. 24.04"
+      },
+      "machine": "uname -m, e.g. x86_64",
+      "term": "TERM",
+      "term_program": "TERM_PROGRAM (optional)",
+      "term_program_version": "TERM_PROGRAM_VERSION (optional)"
+    },
+    "rules": [
+      "os_type/os_version follow os_info 3.14: Debian/Ubuntu/Fedora from ID; VERSION_ID zero-filled to three numbers without leading zeros (24.04 -> 24.4.0, 12 -> 12.0.0, 41 -> 41.0.0).",
+      "terminal follows terminal-detection: TERM_PROGRAM[/TERM_PROGRAM_VERSION] unless it is tmux, else TERM; characters outside [A-Za-z0-9._/-] become _.",
+      "Only verified os-release IDs and machine x86_64 are accepted (the TLS baseline is the linux-x64 build); anything else, or no environment, falls back to a Linux profile chosen deterministically per account."
+    ],
+    "supported_os_release_ids": [
+      "debian",
+      "ubuntu",
+      "fedora"
+    ],
+    "supported_machines": [
+      "x86_64"
+    ],
+    "cases": [
+      {
+        "environment": {
+          "os_release": {
+            "id": "ubuntu",
+            "version_id": "24.04"
+          },
+          "machine": "x86_64",
+          "term": "xterm-256color"
+        },
+        "user_agent": "codex-tui/0.167.1 (Ubuntu 24.4.0; x86_64) xterm-256color (codex-tui; 0.167.1)"
+      },
+      {
+        "environment": {
+          "os_release": {
+            "id": "ubuntu",
+            "version_id": "22.04"
+          },
+          "machine": "x86_64",
+          "term": "tmux-256color",
+          "term_program": "tmux",
+          "term_program_version": "3.4"
+        },
+        "user_agent": "codex-tui/0.167.1 (Ubuntu 22.4.0; x86_64) tmux-256color (codex-tui; 0.167.1)"
+      },
+      {
+        "environment": {
+          "os_release": {
+            "id": "fedora",
+            "version_id": "41"
+          },
+          "machine": "x86_64",
+          "term": "xterm-256color",
+          "term_program": "vscode",
+          "term_program_version": "1.95.3"
+        },
+        "user_agent": "codex-tui/0.167.1 (Fedora 41.0.0; x86_64) vscode/1.95.3 (codex-tui; 0.167.1)"
+      },
+      {
+        "environment": {
+          "os_release": {
+            "id": "debian",
+            "version_id": "12"
+          },
+          "machine": "x86_64",
+          "term": "xterm-256color"
+        },
+        "user_agent": "codex-tui/0.167.1 (Debian 12.0.0; x86_64) xterm-256color (codex-tui; 0.167.1)"
+      }
+    ],
+    "fallback_environments": [
+      null,
+      {
+        "os": "darwin",
+        "os_version": "15.5",
+        "machine": "arm64",
+        "term_program": "iTerm.app",
+        "term_program_version": "3.5.10"
+      },
+      {
+        "os_release": {
+          "id": "ubuntu",
+          "version_id": "24.04"
+        },
+        "machine": "aarch64",
+        "term": "xterm-256color"
+      }
+    ],
+    "evidence": "OS segments recorded by running codex exec 0.167.1 with the os-release of ubuntu:24.04, ubuntu:22.04, fedora:41 and debian:12; terminal segments recorded with TERM/TERM_PROGRAM set (vscode 1.95.3, tmux 3.4, xterm-256color) and in the TUI session."
+  },
+  "header_order": {
+    "source": "session-tui.json (WebSocket upgrade) and a TUI session with the WebSocket rejected (HTTP fallback), 2026-11-16",
+    "note": "Wire order. Optional headers that were not present in the recordings are placed per the official source; a kernel may omit names, but the names it sends must keep this relative order.",
+    "http": [
+      "version",
+      "x-codex-beta-features",
+      "x-codex-turn-state",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-codex-parent-thread-id",
+      "x-openai-subagent",
+      "x-openai-memgen-request",
+      "x-openai-internal-codex-responses-lite",
+      "x-codex-routing-hint",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "accept",
+      "content-encoding",
+      "content-type",
+      "authorization",
+      "chatgpt-account-id",
+      "originator",
+      "user-agent",
+      "host",
+      "content-length"
+    ],
+    "websocket": [
+      "host",
+      "connection",
+      "upgrade",
+      "sec-websocket-version",
+      "sec-websocket-key",
+      "chatgpt-account-id",
+      "authorization",
+      "user-agent",
+      "originator",
+      "openai-beta",
+      "version",
+      "x-codex-beta-features",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-codex-parent-thread-id",
+      "x-openai-subagent",
+      "x-openai-memgen-request",
+      "x-codex-routing-hint",
+      "sec-websocket-extensions"
+    ],
+    "recorded_http": [
+      "version",
+      "x-codex-beta-features",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-openai-internal-codex-responses-lite",
+      "x-codex-routing-hint",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "accept",
+      "content-encoding",
+      "content-type",
+      "authorization",
+      "chatgpt-account-id",
+      "originator",
+      "user-agent",
+      "host",
+      "content-length"
+    ],
+    "recorded_websocket": [
+      "host",
+      "connection",
+      "upgrade",
+      "sec-websocket-version",
+      "sec-websocket-key",
+      "chatgpt-account-id",
+      "authorization",
+      "user-agent",
+      "originator",
+      "openai-beta",
+      "version",
+      "x-codex-beta-features",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-codex-routing-hint",
+      "sec-websocket-extensions"
+    ]
+  }
+}

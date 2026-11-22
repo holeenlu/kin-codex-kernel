@@ -1,0 +1,125 @@
+{
+  "recorded": "2026-11-16",
+  "client": "codex-cli 0.167.1 linux-x64 (npm, codex sha256 dd5bfdf1…d461e8a02)",
+  "cases": {
+    "tui-expiring": {
+      "mode": "tui",
+      "refresh_mode": "expiring",
+      "refresh_requests": [
+        {
+          "tls_ja4": "t13d301100_1d37bd780c83_8e6e362c5eac",
+          "alpn": [],
+          "header_order": [
+            "content-type",
+            "originator",
+            "user-agent",
+            "accept",
+            "host",
+            "content-length"
+          ],
+          "headers": {
+            "content-type": "application/json",
+            "originator": "codex_cli_rs",
+            "user-agent": "codex_cli_rs/0.167.1 (Debian 12.0.0; x86_64) xterm-256color",
+            "accept": "*/*"
+          },
+          "body_text": "{\"client_id\":\"app_EMoamEEZ73f0CkXaXp7hrann\",\"grant_type\":\"refresh_token\",\"refresh_reason\":\"proactive_expiry\",\"refresh_token\":\"<refresh_token>\"}",
+          "body_keys": [
+            "client_id",
+            "grant_type",
+            "refresh_reason",
+            "refresh_token"
+          ]
+        }
+      ],
+      "responses_post_answers": []
+    },
+    "exec-expiring": {
+      "mode": "exec",
+      "refresh_mode": "expiring",
+      "refresh_requests": [
+        {
+          "tls_ja4": "t13d301100_1d37bd780c83_8e6e362c5eac",
+          "alpn": [],
+          "header_order": [
+            "content-type",
+            "originator",
+            "user-agent",
+            "accept",
+            "host",
+            "content-length"
+          ],
+          "headers": {
+            "content-type": "application/json",
+            "originator": "codex_exec",
+            "user-agent": "codex_exec/0.167.1 (Debian 12.0.0; x86_64) unknown",
+            "accept": "*/*"
+          },
+          "body_text": "{\"client_id\":\"app_EMoamEEZ73f0CkXaXp7hrann\",\"grant_type\":\"refresh_token\",\"refresh_reason\":\"proactive_expiry\",\"refresh_token\":\"<refresh_token>\"}",
+          "body_keys": [
+            "client_id",
+            "grant_type",
+            "refresh_reason",
+            "refresh_token"
+          ]
+        }
+      ],
+      "responses_post_answers": []
+    },
+    "tui-unauthorized": {
+      "mode": "tui",
+      "refresh_mode": "unauthorized",
+      "refresh_requests": [],
+      "responses_post_answers": [
+        401,
+        200,
+        200
+      ]
+    },
+    "tui-unauthorized2": {
+      "mode": "tui",
+      "refresh_mode": "unauthorized2",
+      "refresh_requests": [
+        {
+          "tls_ja4": "t13d301100_1d37bd780c83_8e6e362c5eac",
+          "alpn": [],
+          "header_order": [
+            "content-type",
+            "originator",
+            "user-agent",
+            "accept",
+            "host",
+            "content-length"
+          ],
+          "headers": {
+            "content-type": "application/json",
+            "originator": "codex-tui",
+            "user-agent": "codex-tui/0.167.1 (Debian 12.0.0; x86_64) xterm-256color (codex-tui; 0.167.1)",
+            "accept": "*/*"
+          },
+          "body_text": "{\"client_id\":\"app_EMoamEEZ73f0CkXaXp7hrann\",\"grant_type\":\"refresh_token\",\"refresh_reason\":\"unauthorized_recovery\",\"refresh_token\":\"<refresh_token>\"}",
+          "body_keys": [
+            "client_id",
+            "grant_type",
+            "refresh_reason",
+            "refresh_token"
+          ]
+        }
+      ],
+      "responses_post_answers": [
+        401,
+        401,
+        200,
+        200
+      ]
+    }
+  },
+  "findings": [
+    "TLS 與推理的 HTTP 請求相同（native-tls、無 ALPN），JA4 t13d301100_1d37bd780c83_8e6e362c5eac。",
+    "標頭順序：content-type、originator、user-agent、accept、host、content-length；沒有 version、authorization 或其他標頭。accept 為 */*。",
+    "本體為 JSON，欄位依字母排序：client_id、grant_type、refresh_reason、refresh_token；client_id app_EMoamEEZ73f0CkXaXp7hrann。",
+    "身分跟當下的推理身分相同：會話中為 codex-tui 與完整 TUI User-Agent；TUI 啟動時（設定 originator 之前）的刷新才是 codex_cli_rs、User-Agent 無後綴。exec 為 codex_exec。",
+    "主動刷新：access token 在 5 分鐘內到期時，於下一次要用 token 時刷新，refresh_reason=proactive_expiry；官方沒有背景刷新。",
+    "401 復原：401 → 同一個 token 重試（先重讀 auth.json）→ 401 → 以 refresh_reason=unauthorized_recovery 刷新 → 新 token 重試；只有一次 401 時不會刷新。"
+  ]
+}

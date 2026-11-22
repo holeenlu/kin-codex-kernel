@@ -1,0 +1,37 @@
+[package]
+name = "tap-api"
+description = "tap-codex-kernel 的內部 HTTP API：驗證、路由、錯誤對應與 Unix socket"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[dependencies]
+tap-contract.workspace = true
+tap-credentials.workspace = true
+tap-identity.workspace = true
+tap-registry.workspace = true
+tap-upstream.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+http-body.workspace = true
+http-body-util.workspace = true
+
+[dev-dependencies]
+flate2.workspace = true
+tokio-tungstenite.workspace = true
+tungstenite.workspace = true
+tempfile.workspace = true
+tower.workspace = true
+zstd.workspace = true
+
+[lints]
+workspace = true

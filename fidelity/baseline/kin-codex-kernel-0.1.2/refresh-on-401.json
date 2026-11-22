@@ -1,0 +1,15 @@
+{
+  "hop": {
+    "ok": false,
+    "status": 401,
+    "sendState": "sent",
+    "terminalState": "error",
+    "error": {
+      "code": "upstream_auth",
+      "message": "upstream status 401: {\"error\":{\"code\":\"token_expired\",\"message\":\"Provided authentication token is expired. Please try signing in again.\"}}",
+      "type": "api_error"
+    }
+  },
+  "upstream_requests": 1,
+  "refresh_connections": 0
+}

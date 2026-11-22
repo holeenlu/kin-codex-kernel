@@ -1,0 +1,16 @@
+{
+  "hop": {
+    "ok": false,
+    "status": 502,
+    "sendState": "sent",
+    "terminalState": "error",
+    "error": {
+      "code": "upstream_transport",
+      "message": "error sending request for url (https://chatgpt.com:43637/backend-api/codex/responses)",
+      "type": "api_error"
+    }
+  },
+  "hosts": [
+    "chatgpt.com"
+  ]
+}

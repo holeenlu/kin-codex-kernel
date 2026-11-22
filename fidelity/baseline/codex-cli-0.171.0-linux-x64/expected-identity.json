@@ -1,0 +1,95 @@
+{
+  "client": "@openai/codex@0.171.0-linux-x64",
+  "recorded_at": "2026-11-22T15:49:05.826204+00:00",
+  "source": "tui, plus REC_WEBSOCKET=reject for HTTP. Optional headers use the source ordering.",
+  "responses": {
+    "originator": "codex-tui",
+    "version": "0.171.0",
+    "user_agent_pattern": "^codex-tui/0\\.171\\.0 \\((?!Mac OS|Windows)[^;()]+ [^;()]+; [^()]+\\) [A-Za-z0-9._/-]+ \\(codex-tui; 0\\.171\\.0\\)$",
+    "user_agent_example": "codex-tui/0.171.0 (Debian 12.0.0; x86_64) xterm-256color (codex-tui; 0.171.0)"
+  },
+  "composition": {
+    "cases": [
+      {
+        "environment": {
+          "os_release": {
+            "id": "debian",
+            "version_id": "12"
+          },
+          "machine": "x86_64",
+          "term": "xterm-256color"
+        },
+        "user_agent": "codex-tui/0.171.0 (Debian 12.0.0; x86_64) xterm-256color (codex-tui; 0.171.0)"
+      }
+    ],
+    "fallback_environments": [
+      null,
+      {
+        "os": "darwin",
+        "os_version": "15.5",
+        "machine": "arm64",
+        "term_program": "iTerm.app",
+        "term_program_version": "3.5.10"
+      },
+      {
+        "os_release": {
+          "id": "ubuntu",
+          "version_id": "24.04"
+        },
+        "machine": "aarch64",
+        "term": "xterm-256color"
+      }
+    ]
+  },
+  "header_order": {
+    "http": [
+      "version",
+      "x-codex-beta-features",
+      "x-codex-turn-state",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-codex-parent-thread-id",
+      "x-openai-subagent",
+      "x-openai-memgen-request",
+      "x-openai-internal-codex-responses-lite",
+      "x-codex-routing-hint",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "accept",
+      "content-encoding",
+      "content-type",
+      "authorization",
+      "chatgpt-account-id",
+      "originator",
+      "user-agent",
+      "accept-encoding",
+      "host",
+      "content-length"
+    ],
+    "websocket": [
+      "host",
+      "connection",
+      "upgrade",
+      "sec-websocket-version",
+      "sec-websocket-key",
+      "chatgpt-account-id",
+      "authorization",
+      "user-agent",
+      "originator",
+      "openai-beta",
+      "version",
+      "x-codex-beta-features",
+      "x-client-request-id",
+      "session-id",
+      "thread-id",
+      "x-codex-window-id",
+      "x-codex-turn-metadata",
+      "x-codex-parent-thread-id",
+      "x-openai-subagent",
+      "x-openai-memgen-request",
+      "x-codex-routing-hint",
+      "sec-websocket-extensions"
+    ]
+  }
+}

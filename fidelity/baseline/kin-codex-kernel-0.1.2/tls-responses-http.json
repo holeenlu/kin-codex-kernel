@@ -1,0 +1,99 @@
+{
+  "scenario": "responses-http",
+  "options": {
+    "upstream_transport": "http"
+  },
+  "hop": {
+    "ok": false,
+    "status": 502,
+    "sendState": "sent",
+    "terminalState": "error",
+    "error": {
+      "code": "upstream_transport",
+      "message": "error sending request for url (https://chatgpt.com:43717/backend-api/codex/responses)",
+      "type": "api_error"
+    }
+  },
+  "connections_before_hop": 0,
+  "connections": 1,
+  "parse_errors": [],
+  "sequence": [
+    {
+      "server_name": "chatgpt.com",
+      "alpn": [
+        "http/1.1"
+      ],
+      "ja4": "t13d1011h1_61a7ad8aa9b6_3fcd1a44f3e3"
+    }
+  ],
+  "extension_orders": [
+    "supported_versions,application_layer_protocol_negotiation,status_request,key_share,server_name,ec_point_formats,extended_master_secret,signature_algorithms,psk_key_exchange_modes,session_ticket,supported_groups"
+  ],
+  "fingerprints": [
+    {
+      "connections": 1,
+      "legacy_version": "0303",
+      "session_id_length": 32,
+      "ciphers": [
+        "1302",
+        "1301",
+        "1303",
+        "c02c",
+        "c02b",
+        "cca9",
+        "c030",
+        "c02f",
+        "cca8",
+        "00ff"
+      ],
+      "extensions": [
+        "application_layer_protocol_negotiation",
+        "ec_point_formats",
+        "extended_master_secret",
+        "key_share",
+        "psk_key_exchange_modes",
+        "server_name",
+        "session_ticket",
+        "signature_algorithms",
+        "status_request",
+        "supported_groups",
+        "supported_versions"
+      ],
+      "server_name": "chatgpt.com",
+      "alpn": [
+        "http/1.1"
+      ],
+      "supported_versions": [
+        "0304",
+        "0303"
+      ],
+      "supported_groups": [
+        "001d",
+        "0017",
+        "0018"
+      ],
+      "key_share_groups": [
+        "001d"
+      ],
+      "signature_algorithms": [
+        "0503",
+        "0403",
+        "0807",
+        "0806",
+        "0805",
+        "0804",
+        "0601",
+        "0501",
+        "0401"
+      ],
+      "psk_modes": [
+        1
+      ],
+      "ec_point_formats": [
+        0
+      ],
+      "grease": false,
+      "ja4": "t13d1011h1_61a7ad8aa9b6_3fcd1a44f3e3"
+    }
+  ]
+}

@@ -1,0 +1,404 @@
+{
+  "client": "@openai/codex 0.167.1 (npm @openai/codex@0.167.1-linux-x64, vendor/x86_64-unknown-linux-musl/bin/codex)",
+  "recorded_at": "2026-11-16T02:52:01.334Z",
+  "extension_order_varies": {
+    "http": false,
+    "websocket": true
+  },
+  "fingerprints": {
+    "http": {
+      "chatgpt.com": [
+        {
+          "legacy_version": "0303",
+          "session_id_length": 32,
+          "ciphers": [
+            "1302",
+            "1303",
+            "1301",
+            "c02c",
+            "c030",
+            "009f",
+            "cca9",
+            "cca8",
+            "ccaa",
+            "c02b",
+            "c02f",
+            "009e",
+            "c024",
+            "c028",
+            "006b",
+            "c023",
+            "c027",
+            "0067",
+            "c00a",
+            "c014",
+            "0039",
+            "c009",
+            "c013",
+            "0033",
+            "009d",
+            "009c",
+            "003d",
+            "003c",
+            "0035",
+            "002f"
+          ],
+          "extensions": [
+            "ec_point_formats",
+            "extended_master_secret",
+            "key_share",
+            "psk_key_exchange_modes",
+            "renegotiation_info",
+            "server_name",
+            "session_ticket",
+            "signature_algorithms",
+            "supported_groups",
+            "supported_versions",
+            "unknown_22"
+          ],
+          "server_name": "chatgpt.com",
+          "alpn": [],
+          "supported_versions": [
+            "0304",
+            "0303"
+          ],
+          "supported_groups": [
+            "11ec",
+            "001d",
+            "0017",
+            "001e",
+            "0018",
+            "0019",
+            "0100",
+            "0101"
+          ],
+          "key_share_groups": [
+            "11ec",
+            "001d"
+          ],
+          "signature_algorithms": [
+            "0905",
+            "0906",
+            "0904",
+            "0403",
+            "0503",
+            "0603",
+            "0807",
+            "0808",
+            "081a",
+            "081b",
+            "081c",
+            "0809",
+            "080a",
+            "080b",
+            "0804",
+            "0805",
+            "0806",
+            "0401",
+            "0501",
+            "0601",
+            "0303",
+            "0301",
+            "0302",
+            "0402",
+            "0502",
+            "0602"
+          ],
+          "psk_modes": [
+            1
+          ],
+          "ec_point_formats": [
+            0
+          ],
+          "grease": false,
+          "ja4": "t13d301100_1d37bd780c83_8e6e362c5eac"
+        }
+      ],
+      "auth.openai.com": [
+        {
+          "legacy_version": "0303",
+          "session_id_length": 32,
+          "ciphers": [
+            "1302",
+            "1303",
+            "1301",
+            "c02c",
+            "c030",
+            "009f",
+            "cca9",
+            "cca8",
+            "ccaa",
+            "c02b",
+            "c02f",
+            "009e",
+            "c024",
+            "c028",
+            "006b",
+            "c023",
+            "c027",
+            "0067",
+            "c00a",
+            "c014",
+            "0039",
+            "c009",
+            "c013",
+            "0033",
+            "009d",
+            "009c",
+            "003d",
+            "003c",
+            "0035",
+            "002f"
+          ],
+          "extensions": [
+            "ec_point_formats",
+            "extended_master_secret",
+            "key_share",
+            "psk_key_exchange_modes",
+            "renegotiation_info",
+            "server_name",
+            "session_ticket",
+            "signature_algorithms",
+            "supported_groups",
+            "supported_versions",
+            "unknown_22"
+          ],
+          "server_name": "auth.openai.com",
+          "alpn": [],
+          "supported_versions": [
+            "0304",
+            "0303"
+          ],
+          "supported_groups": [
+            "11ec",
+            "001d",
+            "0017",
+            "001e",
+            "0018",
+            "0019",
+            "0100",
+            "0101"
+          ],
+          "key_share_groups": [
+            "11ec",
+            "001d"
+          ],
+          "signature_algorithms": [
+            "0905",
+            "0906",
+            "0904",
+            "0403",
+            "0503",
+            "0603",
+            "0807",
+            "0808",
+            "081a",
+            "081b",
+            "081c",
+            "0809",
+            "080a",
+            "080b",
+            "0804",
+            "0805",
+            "0806",
+            "0401",
+            "0501",
+            "0601",
+            "0303",
+            "0301",
+            "0302",
+            "0402",
+            "0502",
+            "0602"
+          ],
+          "psk_modes": [
+            1
+          ],
+          "ec_point_formats": [
+            0
+          ],
+          "grease": false,
+          "ja4": "t13d301100_1d37bd780c83_8e6e362c5eac"
+        }
+      ],
+      "ab.chatgpt.com": [
+        {
+          "legacy_version": "0303",
+          "session_id_length": 32,
+          "ciphers": [
+            "1302",
+            "1303",
+            "1301",
+            "c02c",
+            "c030",
+            "009f",
+            "cca9",
+            "cca8",
+            "ccaa",
+            "c02b",
+            "c02f",
+            "009e",
+            "c024",
+            "c028",
+            "006b",
+            "c023",
+            "c027",
+            "0067",
+            "c00a",
+            "c014",
+            "0039",
+            "c009",
+            "c013",
+            "0033",
+            "009d",
+            "009c",
+            "003d",
+            "003c",
+            "0035",
+            "002f"
+          ],
+          "extensions": [
+            "ec_point_formats",
+            "extended_master_secret",
+            "key_share",
+            "psk_key_exchange_modes",
+            "renegotiation_info",
+            "server_name",
+            "session_ticket",
+            "signature_algorithms",
+            "supported_groups",
+            "supported_versions",
+            "unknown_22"
+          ],
+          "server_name": "ab.chatgpt.com",
+          "alpn": [],
+          "supported_versions": [
+            "0304",
+            "0303"
+          ],
+          "supported_groups": [
+            "11ec",
+            "001d",
+            "0017",
+            "001e",
+            "0018",
+            "0019",
+            "0100",
+            "0101"
+          ],
+          "key_share_groups": [
+            "11ec",
+            "001d"
+          ],
+          "signature_algorithms": [
+            "0905",
+            "0906",
+            "0904",
+            "0403",
+            "0503",
+            "0603",
+            "0807",
+            "0808",
+            "081a",
+            "081b",
+            "081c",
+            "0809",
+            "080a",
+            "080b",
+            "0804",
+            "0805",
+            "0806",
+            "0401",
+            "0501",
+            "0601",
+            "0303",
+            "0301",
+            "0302",
+            "0402",
+            "0502",
+            "0602"
+          ],
+          "psk_modes": [
+            1
+          ],
+          "ec_point_formats": [
+            0
+          ],
+          "grease": false,
+          "ja4": "t13d301100_1d37bd780c83_8e6e362c5eac"
+        }
+      ]
+    },
+    "websocket": {
+      "chatgpt.com": [
+        {
+          "legacy_version": "0303",
+          "session_id_length": 32,
+          "ciphers": [
+            "1302",
+            "1301",
+            "1303",
+            "c02c",
+            "c02b",
+            "cca9",
+            "c030",
+            "c02f",
+            "cca8",
+            "00ff"
+          ],
+          "extensions": [
+            "ec_point_formats",
+            "extended_master_secret",
+            "key_share",
+            "psk_key_exchange_modes",
+            "server_name",
+            "session_ticket",
+            "signature_algorithms",
+            "status_request",
+            "supported_groups",
+            "supported_versions"
+          ],
+          "server_name": "chatgpt.com",
+          "alpn": [],
+          "supported_versions": [
+            "0304",
+            "0303"
+          ],
+          "supported_groups": [
+            "11ec",
+            "001d",
+            "0017",
+            "0018"
+          ],
+          "key_share_groups": [
+            "11ec",
+            "001d"
+          ],
+          "signature_algorithms": [
+            "0503",
+            "0403",
+            "0603",
+            "0807",
+            "0806",
+            "0805",
+            "0804",
+            "0601",
+            "0501",
+            "0401",
+            "0904",
+            "0905",
+            "0906"
+          ],
+          "psk_modes": [
+            1
+          ],
+          "ec_point_formats": [
+            0
+          ],
+          "grease": false,
+          "ja4": "t13d101000_61a7ad8aa9b6_0d308c48d2a3"
+        }
+      ]
+    }
+  }
+}

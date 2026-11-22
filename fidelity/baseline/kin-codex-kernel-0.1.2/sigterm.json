@@ -1,0 +1,7 @@
+{
+  "exited": {
+    "code": null,
+    "signal": "SIGTERM"
+  },
+  "socketLeft": true
+}

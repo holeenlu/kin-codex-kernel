@@ -1,0 +1,173 @@
+{
+  "scenario": "responses-websocket",
+  "options": {
+    "upstream_transport": "prefer_websocket"
+  },
+  "hop": {
+    "ok": false,
+    "status": 502,
+    "sendState": "sent",
+    "terminalState": "error",
+    "error": {
+      "code": "upstream_transport",
+      "message": "error sending request for url (https://chatgpt.com:33727/backend-api/codex/responses)",
+      "type": "api_error"
+    }
+  },
+  "connections_before_hop": 0,
+  "connections": 3,
+  "parse_errors": [],
+  "sequence": [
+    {
+      "server_name": "chatgpt.com",
+      "alpn": [],
+      "ja4": "t13d101000_61a7ad8aa9b6_3fcd1a44f3e3"
+    },
+    {
+      "server_name": "chatgpt.com",
+      "alpn": [],
+      "ja4": "t13d101000_61a7ad8aa9b6_3fcd1a44f3e3"
+    },
+    {
+      "server_name": "chatgpt.com",
+      "alpn": [
+        "http/1.1"
+      ],
+      "ja4": "t13d1011h1_61a7ad8aa9b6_3fcd1a44f3e3"
+    }
+  ],
+  "extension_orders": [
+    "key_share,status_request,session_ticket,supported_versions,psk_key_exchange_modes,extended_master_secret,server_name,ec_point_formats,signature_algorithms,supported_groups",
+    "psk_key_exchange_modes,session_ticket,extended_master_secret,supported_groups,ec_point_formats,key_share,status_request,signature_algorithms,supported_versions,server_name",
+    "supported_groups,key_share,session_ticket,extended_master_secret,supported_versions,status_request,application_layer_protocol_negotiation,ec_point_formats,psk_key_exchange_modes,server_name,signature_algorithms"
+  ],
+  "fingerprints": [
+    {
+      "connections": 2,
+      "legacy_version": "0303",
+      "session_id_length": 32,
+      "ciphers": [
+        "1302",
+        "1301",
+        "1303",
+        "c02c",
+        "c02b",
+        "cca9",
+        "c030",
+        "c02f",
+        "cca8",
+        "00ff"
+      ],
+      "extensions": [
+        "ec_point_formats",
+        "extended_master_secret",
+        "key_share",
+        "psk_key_exchange_modes",
+        "server_name",
+        "session_ticket",
+        "signature_algorithms",
+        "status_request",
+        "supported_groups",
+        "supported_versions"
+      ],
+      "server_name": "chatgpt.com",
+      "alpn": [],
+      "supported_versions": [
+        "0304",
+        "0303"
+      ],
+      "supported_groups": [
+        "001d",
+        "0017",
+        "0018"
+      ],
+      "key_share_groups": [
+        "001d"
+      ],
+      "signature_algorithms": [
+        "0503",
+        "0403",
+        "0807",
+        "0806",
+        "0805",
+        "0804",
+        "0601",
+        "0501",
+        "0401"
+      ],
+      "psk_modes": [
+        1
+      ],
+      "ec_point_formats": [
+        0
+      ],
+      "grease": false,
+      "ja4": "t13d101000_61a7ad8aa9b6_3fcd1a44f3e3"
+    },
+    {
+      "connections": 1,
+      "legacy_version": "0303",
+      "session_id_length": 32,
+      "ciphers": [
+        "1302",
+        "1301",
+        "1303",
+        "c02c",
+        "c02b",
+        "cca9",
+        "c030",
+        "c02f",
+        "cca8",
+        "00ff"
+      ],
+      "extensions": [
+        "application_layer_protocol_negotiation",
+        "ec_point_formats",
+        "extended_master_secret",
+        "key_share",
+        "psk_key_exchange_modes",
+        "server_name",
+        "session_ticket",
+        "signature_algorithms",
+        "status_request",
+        "supported_groups",
+        "supported_versions"
+      ],
+      "server_name": "chatgpt.com",
+      "alpn": [
+        "http/1.1"
+      ],
+      "supported_versions": [
+        "0304",
+        "0303"
+      ],
+      "supported_groups": [
+        "001d",
+        "0017",
+        "0018"
+      ],
+      "key_share_groups": [
+        "001d"
+      ],
+      "signature_algorithms": [
+        "0503",
+        "0403",
+        "0807",
+        "0806",
+        "0805",
+        "0804",
+        "0601",
+        "0501",
+        "0401"
+      ],
+      "psk_modes": [
+        1
+      ],
+      "ec_point_formats": [
+        0
+      ],
+      "grease": false,
+      "ja4": "t13d1011h1_61a7ad8aa9b6_3fcd1a44f3e3"
+    }
+  ]
+}

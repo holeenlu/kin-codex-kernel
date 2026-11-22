@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "status": 429,
+  "sendState": "sent",
+  "error": {
+    "code": "usage_limit_reached",
+    "message": "upstream status 429: {\"error\":{\"type\":\"usage_limit_reached\",\"code\":\"usage_limit_reached\",\"message\":\"limit\"}}",
+    "type": "api_error"
+  },
+  "retryAfter": "7"
+}

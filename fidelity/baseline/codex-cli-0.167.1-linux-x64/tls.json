@@ -1,0 +1,424 @@
+{
+  "client": "@openai/codex 0.167.1 (npm @openai/codex@0.167.1-linux-x64, vendor/x86_64-unknown-linux-musl/bin/codex)",
+  "package_integrity": "sha512-qZteglyvMCj1QVymMyPyKdtw38HaXCv5gvw8WN+N0+JJstu3k/d8xiYj9ciL7OwFLhcujgP8bCGJgaREeqrHkw==",
+  "recorded_at": "2026-11-16T02:52:01.334Z",
+  "runs": {
+    "fresh_token": {
+      "mode": "fresh",
+      "exited": {
+        "code": 1,
+        "signal": null
+      },
+      "connections": 69,
+      "parse_errors": 0,
+      "hosts": {
+        "chatgpt.com": 69
+      },
+      "distinct_extension_orders": 1,
+      "fingerprints": [
+        {
+          "connections": 69,
+          "legacy_version": "0303",
+          "session_id_length": 32,
+          "ciphers": [
+            "1302",
+            "1303",
+            "1301",
+            "c02c",
+            "c030",
+            "009f",
+            "cca9",
+            "cca8",
+            "ccaa",
+            "c02b",
+            "c02f",
+            "009e",
+            "c024",
+            "c028",
+            "006b",
+            "c023",
+            "c027",
+            "0067",
+            "c00a",
+            "c014",
+            "0039",
+            "c009",
+            "c013",
+            "0033",
+            "009d",
+            "009c",
+            "003d",
+            "003c",
+            "0035",
+            "002f"
+          ],
+          "server_name": "chatgpt.com",
+          "alpn": [],
+          "supported_versions": [
+            "0304",
+            "0303"
+          ],
+          "supported_groups": [
+            "11ec",
+            "001d",
+            "0017",
+            "001e",
+            "0018",
+            "0019",
+            "0100",
+            "0101"
+          ],
+          "key_share_groups": [
+            "11ec",
+            "001d"
+          ],
+          "signature_algorithms": [
+            "0905",
+            "0906",
+            "0904",
+            "0403",
+            "0503",
+            "0603",
+            "0807",
+            "0808",
+            "081a",
+            "081b",
+            "081c",
+            "0809",
+            "080a",
+            "080b",
+            "0804",
+            "0805",
+            "0806",
+            "0401",
+            "0501",
+            "0601",
+            "0303",
+            "0301",
+            "0302",
+            "0402",
+            "0502",
+            "0602"
+          ],
+          "psk_modes": [
+            1
+          ],
+          "ec_point_formats": [
+            0
+          ],
+          "grease": false,
+          "ja4": "t13d301100_1d37bd780c83_8e6e362c5eac",
+          "extensions": [
+            "ec_point_formats",
+            "extended_master_secret",
+            "key_share",
+            "psk_key_exchange_modes",
+            "renegotiation_info",
+            "server_name",
+            "session_ticket",
+            "signature_algorithms",
+            "supported_groups",
+            "supported_versions",
+            "unknown_22"
+          ],
+          "ja3_text": "771,4866-4867-4865-49196-49200-159-52393-52392-52394-49195-49199-158-49188-49192-107-49187-49191-103-49162-49172-57-49161-49171-51-157-156-61-60-53-47,65281-0-11-10-35-22-23-13-43-45-51,4588-29-23-30-24-25-256-257,0",
+          "ja3_md5": "0b85eb0d4981e69064e40753e4f0ac5f",
+          "extension_order_example": [
+            "renegotiation_info",
+            "server_name",
+            "ec_point_formats",
+            "supported_groups",
+            "session_ticket",
+            "unknown_22",
+            "extended_master_secret",
+            "signature_algorithms",
+            "supported_versions",
+            "psk_key_exchange_modes",
+            "key_share"
+          ]
+        }
+      ],
+      "log_excerpt": [
+        "WARN codex_core::client: falling back to HTTP",
+        "WARN codex_core::responses_retry: stream disconnected - retrying sampling request (1/5 in 187ms)... turn_id=01a1e241-f08d-77c0-9fd7-89c5aedeb621 retries=1 max_retries=5 sampling_error=workspace routing discovery failed",
+        "ERROR: Reconnecting... 1/5",
+        "WARN codex_core::responses_retry: stream disconnected - retrying sampling request (2/5 in 399ms)... turn_id=01a1e241-f08d-77c0-9fd7-89c5aedeb621 retries=2 max_retries=5 sampling_error=workspace routing discovery failed",
+        "ERROR: Reconnecting... 2/5",
+        "WARN codex_core::responses_retry: stream disconnected - retrying sampling request (3/5 in 809ms)... turn_id=01a1e241-f08d-77c0-9fd7-89c5aedeb621 retries=3 max_retries=5 sampling_error=workspace routing discovery failed",
+        "ERROR: Reconnecting... 3/5",
+        "WARN codex_core::responses_retry: stream disconnected - retrying sampling request (4/5 in 1.457s)... turn_id=01a1e241-f08d-77c0-9fd7-89c5aedeb621 retries=4 max_retries=5 sampling_error=workspace routing discovery failed",
+        "ERROR: Reconnecting... 4/5",
+        "WARN codex_core::responses_retry: stream disconnected - retrying sampling request (5/5 in 2.979s)... turn_id=01a1e241-f08d-77c0-9fd7-89c5aedeb621 retries=5 max_retries=5 sampling_error=workspace routing discovery failed",
+        "ERROR: Reconnecting... 5/5",
+        "ERROR: workspace routing discovery failed"
+      ]
+    },
+    "expired_access_token": {
+      "mode": "expired",
+      "exited": {
+        "code": 1,
+        "signal": null
+      },
+      "connections": 129,
+      "parse_errors": 0,
+      "hosts": {
+        "auth.openai.com": 60,
+        "chatgpt.com": 69
+      },
+      "distinct_extension_orders": 1,
+      "fingerprints": [
+        {
+          "connections": 60,
+          "legacy_version": "0303",
+          "session_id_length": 32,
+          "ciphers": [
+            "1302",
+            "1303",
+            "1301",
+            "c02c",
+            "c030",
+            "009f",
+            "cca9",
+            "cca8",
+            "ccaa",
+            "c02b",
+            "c02f",
+            "009e",
+            "c024",
+            "c028",
+            "006b",
+            "c023",
+            "c027",
+            "0067",
+            "c00a",
+            "c014",
+            "0039",
+            "c009",
+            "c013",
+            "0033",
+            "009d",
+            "009c",
+            "003d",
+            "003c",
+            "0035",
+            "002f"
+          ],
+          "server_name": "auth.openai.com",
+          "alpn": [],
+          "supported_versions": [
+            "0304",
+            "0303"
+          ],
+          "supported_groups": [
+            "11ec",
+            "001d",
+            "0017",
+            "001e",
+            "0018",
+            "0019",
+            "0100",
+            "0101"
+          ],
+          "key_share_groups": [
+            "11ec",
+            "001d"
+          ],
+          "signature_algorithms": [
+            "0905",
+            "0906",
+            "0904",
+            "0403",
+            "0503",
+            "0603",
+            "0807",
+            "0808",
+            "081a",
+            "081b",
+            "081c",
+            "0809",
+            "080a",
+            "080b",
+            "0804",
+            "0805",
+            "0806",
+            "0401",
+            "0501",
+            "0601",
+            "0303",
+            "0301",
+            "0302",
+            "0402",
+            "0502",
+            "0602"
+          ],
+          "psk_modes": [
+            1
+          ],
+          "ec_point_formats": [
+            0
+          ],
+          "grease": false,
+          "ja4": "t13d301100_1d37bd780c83_8e6e362c5eac",
+          "extensions": [
+            "ec_point_formats",
+            "extended_master_secret",
+            "key_share",
+            "psk_key_exchange_modes",
+            "renegotiation_info",
+            "server_name",
+            "session_ticket",
+            "signature_algorithms",
+            "supported_groups",
+            "supported_versions",
+            "unknown_22"
+          ],
+          "ja3_text": "771,4866-4867-4865-49196-49200-159-52393-52392-52394-49195-49199-158-49188-49192-107-49187-49191-103-49162-49172-57-49161-49171-51-157-156-61-60-53-47,65281-0-11-10-35-22-23-13-43-45-51,4588-29-23-30-24-25-256-257,0",
+          "ja3_md5": "0b85eb0d4981e69064e40753e4f0ac5f",
+          "extension_order_example": [
+            "renegotiation_info",
+            "server_name",
+            "ec_point_formats",
+            "supported_groups",
+            "session_ticket",
+            "unknown_22",
+            "extended_master_secret",
+            "signature_algorithms",
+            "supported_versions",
+            "psk_key_exchange_modes",
+            "key_share"
+          ]
+        },
+        {
+          "connections": 69,
+          "legacy_version": "0303",
+          "session_id_length": 32,
+          "ciphers": [
+            "1302",
+            "1303",
+            "1301",
+            "c02c",
+            "c030",
+            "009f",
+            "cca9",
+            "cca8",
+            "ccaa",
+            "c02b",
+            "c02f",
+            "009e",
+            "c024",
+            "c028",
+            "006b",
+            "c023",
+            "c027",
+            "0067",
+            "c00a",
+            "c014",
+            "0039",
+            "c009",
+            "c013",
+            "0033",
+            "009d",
+            "009c",
+            "003d",
+            "003c",
+            "0035",
+            "002f"
+          ],
+          "server_name": "chatgpt.com",
+          "alpn": [],
+          "supported_versions": [
+            "0304",
+            "0303"
+          ],
+          "supported_groups": [
+            "11ec",
+            "001d",
+            "0017",
+            "001e",
+            "0018",
+            "0019",
+            "0100",
+            "0101"
+          ],
+          "key_share_groups": [
+            "11ec",
+            "001d"
+          ],
+          "signature_algorithms": [
+            "0905",
+            "0906",
+            "0904",
+            "0403",
+            "0503",
+            "0603",
+            "0807",
+            "0808",
+            "081a",
+            "081b",
+            "081c",
+            "0809",
+            "080a",
+            "080b",
+            "0804",
+            "0805",
+            "0806",
+            "0401",
+            "0501",
+            "0601",
+            "0303",
+            "0301",
+            "0302",
+            "0402",
+            "0502",
+            "0602"
+          ],
+          "psk_modes": [
+            1
+          ],
+          "ec_point_formats": [
+            0
+          ],
+          "grease": false,
+          "ja4": "t13d301100_1d37bd780c83_8e6e362c5eac",
+          "extensions": [
+            "ec_point_formats",
+            "extended_master_secret",
+            "key_share",
+            "psk_key_exchange_modes",
+            "renegotiation_info",
+            "server_name",
+            "session_ticket",
+            "signature_algorithms",
+            "supported_groups",
+            "supported_versions",
+            "unknown_22"
+          ],
+          "ja3_text": "771,4866-4867-4865-49196-49200-159-52393-52392-52394-49195-49199-158-49188-49192-107-49187-49191-103-49162-49172-57-49161-49171-51-157-156-61-60-53-47,65281-0-11-10-35-22-23-13-43-45-51,4588-29-23-30-24-25-256-257,0",
+          "ja3_md5": "0b85eb0d4981e69064e40753e4f0ac5f",
+          "extension_order_example": [
+            "renegotiation_info",
+            "server_name",
+            "ec_point_formats",
+            "supported_groups",
+            "session_ticket",
+            "unknown_22",
+            "extended_master_secret",
+            "signature_algorithms",
+            "supported_versions",
+            "psk_key_exchange_modes",
+            "key_share"
+          ]
+        }
+      ],
+      "log_excerpt": [
+        "ERROR: Reconnecting... 4/5",
+        "ERROR codex_login::auth::manager: Failed to refresh token: error sending request for url (https://auth.openai.com/oauth/token)",
+        "WARN codex_core::responses_retry: stream disconnected - retrying sampling request (5/5 in 3.292s)... turn_id=01a1e243-026a-7c80-b478-27e6870f569b retries=5 max_retries=5 sampling_error=workspace routing discovery failed",
+        "ERROR: Reconnecting... 5/5",
+        "ERROR: workspace routing discovery failed",
+        "WARN codex_analytics::client: failed to send events request: error sending request for url (https://chatgpt.com/backend-api/codex/analytics-events/events)",
+        "WARN codex_mcp::rmcp_client: failed to initialize MCP client during shutdown: MCP startup failed: handshaking with MCP server failed: Send message error Transport [codex_rmcp_client::tool_list_changes::ToolListChanges<codex_rmcp_client::eve"
+      ]
+    }
+  }
+}
