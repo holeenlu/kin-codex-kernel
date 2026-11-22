@@ -1,0 +1,101 @@
+name: release
+
+# 從既有 vX.Y.Z 標籤發布；vm2api 另以固定雜湊安裝。
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vX.Y.Z tag to build and publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Require a version tag
+        run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
+
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+
+      - name: Tag must match the crate version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          test "v$version" = "$RELEASE_TAG" || { echo "tag $RELEASE_TAG != v$version"; exit 1; }
+          echo "TAP_BUILD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Check the tagged release notes
+        run: python3 .github/scripts/check_release_notes.py "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Install the pinned toolchain and targets
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --component clippy,rustfmt
+          rustup target add --toolchain "$channel" x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+
+      - name: Quality gates
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --locked
+
+      - name: Install cargo-zigbuild
+        run: pip install --user 'cargo-zigbuild>=0.19,<1'
+
+      - name: Read repository visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          visibility=$(gh api "repos/$GITHUB_REPOSITORY" --jq .visibility)
+          [[ "$visibility" =~ ^(public|private|internal)$ ]]
+          echo "TAP_SOURCE_VISIBILITY=$visibility" >> "$GITHUB_ENV"
+
+      - name: Build both targets against glibc 2.34
+        run: |
+          export RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/build --remap-path-prefix=$HOME/.cargo=/cargo"
+          mkdir -p dist
+          for pair in x86_64-unknown-linux-gnu:amd64 aarch64-unknown-linux-gnu:arm64; do
+            target=${pair%%:*}
+            arch=${pair##*:}
+            cargo zigbuild --release --locked -p tap-codex-kernel --target "$target.2.34"
+            binary="dist/tap-codex-kernel-linux-$arch"
+            cp "target/$target/release/tap-codex-kernel" "$binary"
+            cargo xtask check-glibc --binary "$binary" --max 2.34
+            record="$binary.build.json"
+            cargo xtask build-record --binary "$binary" --target "$target" --out "$record"
+            # Older tags hard-coded repository visibility. Record its value at build time.
+            jq --arg visibility "$TAP_SOURCE_VISIBILITY" '.source.visibility = $visibility' "$record" > "$record.tmp"
+            mv "$record.tmp" "$record"
+          done
+          cp NOTICE dist/NOTICE
+          (cd dist && cargo xtask sha256sums tap-codex-kernel-linux-amd64 tap-codex-kernel-linux-arm64 \
+            tap-codex-kernel-linux-amd64.build.json tap-codex-kernel-linux-arm64.build.json NOTICE > SHA256SUMS)
+          (cd dist && sha256sum -c SHA256SUMS)
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$TAP_BUILD_SHA"
+          notes="$RUNNER_TEMP/release-notes.md"
+          printf '\n## 建置與附件\n\n來源提交 `%s`。[GitHub Actions 建置紀錄](%s/%s/actions/runs/%s)\n\n' \
+            "$TAP_BUILD_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> "$notes"
+          echo '本次建置通過 fmt、Clippy 與工作區測試。Linux amd64、arm64 執行檔均通過 glibc 2.34 檢查，並已核對附件雜湊。下載全部附件後，可執行 `sha256sum -c SHA256SUMS` 複核。' >> "$notes"
+          gh release create "$RELEASE_TAG" dist/* --verify-tag \
+            --title "tap-codex-kernel $RELEASE_TAG" \
+            --notes-file "$notes" \
+            --prerelease

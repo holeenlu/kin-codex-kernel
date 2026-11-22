@@ -1,0 +1,19 @@
+tap-codex-kernel
+Copyright (c) 2026 holeenlu. All rights reserved.
+
+This product depends on open-source Rust crates. Each release ships this
+NOTICE together with the license texts of the crates compiled into the binary.
+
+Statically linked native libraries:
+
+- OpenSSL 3.6.3 (https://www.openssl.org), Apache License 2.0, built from source
+  by the openssl-src crate and linked through native-tls/openssl (outbound HTTPS).
+- Zstandard (https://github.com/facebook/zstd), BSD 3-Clause License, linked
+  through the zstd crate (request body compression).
+
+Code derived from the following projects must keep their notices below when
+it is incorporated. Behaviour that mirrors the official client (header order,
+User-Agent format, TLS stack choice) was reimplemented, not copied:
+
+- openai/codex (https://github.com/openai/codex), Apache License 2.0
+- zyycn/codex-proxy-rs (https://github.com/zyycn/codex-proxy-rs), Apache License 2.0

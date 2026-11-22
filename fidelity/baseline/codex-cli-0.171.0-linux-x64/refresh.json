@@ -1,0 +1,29 @@
+{
+  "client": "@openai/codex@0.171.0-linux-x64",
+  "recorded_at": "2026-11-22T15:49:05.826204+00:00",
+  "cases": {
+    "tui-unauthorized2": {
+      "refresh_requests": [
+        {
+          "method": "POST",
+          "path": "/oauth/token",
+          "header_order": [
+            "content-type",
+            "originator",
+            "user-agent",
+            "accept",
+            "accept-encoding",
+            "host",
+            "content-length"
+          ],
+          "body_keys": [
+            "client_id",
+            "grant_type",
+            "refresh_reason",
+            "refresh_token"
+          ]
+        }
+      ]
+    }
+  }
+}

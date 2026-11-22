@@ -1,0 +1,16 @@
+[package]
+name = "tap-contract"
+description = "tap-codex-kernel 與 vm2api 控制面之間的線路契約（純型別，不含 IO）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license-file.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
