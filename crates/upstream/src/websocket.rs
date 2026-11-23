@@ -78,7 +78,7 @@ pub struct WebsocketTransport {
     capacity: Option<Arc<crate::ws_capacity::Capacity>>,
     fast_budget: Option<Duration>,
     read_idle: Option<Duration>,
-    idle: Mutex<HashMap<String, Vec<(Socket, Instant)>>>,
+    idle: Mutex<HashMap<String, Vec<(IdleSocket, Instant)>>>,
     disabled: Mutex<VecDeque<String>>,
 }
 
@@ -99,6 +99,50 @@ struct Socket {
     owner: Option<String>,
     max_message: Option<usize>,
     _capacity: Option<tokio::sync::OwnedSemaphorePermit>,
+}
+
+/// 閒置時仍驅動讀取，讓 tungstenite 回送 Pong；收到業務訊息或關閉就淘汰。
+/// 名額留在池項目，確保同步淘汰時立即歸還，不必等待背景工作收到取消。
+struct IdleSocket {
+    owner: Option<String>,
+    resume: Option<tokio::sync::oneshot::Sender<()>>,
+    task: tokio::task::JoinHandle<Option<Socket>>,
+    capacity: Option<tokio::sync::OwnedSemaphorePermit>,
+}
+
+impl IdleSocket {
+    fn new(mut socket: Socket) -> Self {
+        let owner = socket.owner.clone();
+        let capacity = socket._capacity.take();
+        let (resume, resumed) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            tokio::select! {
+                biased;
+                _ = socket.next_frame() => None,
+                result = resumed => result.ok().map(|()| socket),
+                () = tokio::time::sleep(IDLE_TTL) => None,
+            }
+        });
+        Self {
+            owner,
+            resume: Some(resume),
+            task,
+            capacity,
+        }
+    }
+
+    async fn resume(mut self) -> Option<Socket> {
+        self.resume.take()?.send(()).ok()?;
+        let mut socket = (&mut self.task).await.ok()??;
+        socket._capacity = self.capacity.take();
+        Some(socket)
+    }
+}
+
+impl Drop for IdleSocket {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
 }
 
 /// 一輪進行中的 WebSocket 請求。
@@ -221,9 +265,10 @@ impl WebsocketTransport {
         // 只在送出前探測；Close 與部分寫入都不能證明送出的請求沒有執行。
         let exact = policy.previous_response_id.as_deref();
         let want = exact.or_else(|| hint.and_then(|hint| hint.previous_response_id.as_deref()));
-        let idle = idle_key
-            .as_deref()
-            .and_then(|k| self.take_idle(k, want, exact.is_some()));
+        let idle = match idle_key.as_deref() {
+            Some(k) => self.take_idle(k, want, exact.is_some()).await,
+            None => None,
+        };
         // 原生 WS 的增量不能脫離原線。外部 HTTP 呼叫者自帶的未知 ID 仍可在同帳號新線原樣詢問，不借用另一條鏈。
         if exact.is_some() && hint.is_some() && idle.is_none() {
             return Err(policy.rejection(false, UpstreamSent::No));
@@ -616,12 +661,12 @@ impl WebsocketTransport {
 
     /// 取一條仍開著的閒置連線。有續接提示時優先拿上一輪回應對得上的那條（才送得了增量），
     /// 否則拿最近放回的；閒置期間被上游關掉的丟掉、再試下一條。
-    fn take_idle(&self, key: &str, want: Option<&str>, exact: bool) -> Option<Socket> {
+    async fn take_idle(&self, key: &str, want: Option<&str>, exact: bool) -> Option<Socket> {
         loop {
-            let mut socket = {
+            let pooled = {
                 let mut idle = self.idle.lock().ok()?;
                 let list = idle.get_mut(key)?;
-                list.retain(|(_, since)| since.elapsed() < IDLE_TTL);
+                list.retain(|(s, since)| since.elapsed() < IDLE_TTL && !s.task.is_finished());
                 let index = want
                     .and_then(|id| list.iter().rposition(|(s, _)| s.owner.as_deref() == Some(id)))
                     .or_else(|| (!exact).then(|| list.len().checked_sub(1)).flatten());
@@ -631,7 +676,9 @@ impl WebsocketTransport {
                 }
                 taken?
             };
-            if still_open(&mut socket.conn) {
+            if let Some(mut socket) = pooled.resume().await
+                && still_open(&mut socket.conn)
+            {
                 return Some(socket);
             }
         }
@@ -671,7 +718,7 @@ impl WebsocketTransport {
     pub(super) fn reap_idle(&self) {
         if let Ok(mut idle) = self.idle.lock() {
             idle.retain(|_, list| {
-                list.retain(|(_, at)| at.elapsed() < IDLE_TTL);
+                list.retain(|(s, at)| at.elapsed() < IDLE_TTL && !s.task.is_finished());
                 !list.is_empty()
             });
         }
@@ -680,7 +727,7 @@ impl WebsocketTransport {
     fn put_idle(&self, key: String, socket: Socket) {
         let Ok(mut idle) = self.idle.lock() else { return };
         idle.retain(|_, list| {
-            list.retain(|(_, since)| since.elapsed() < IDLE_TTL);
+            list.retain(|(s, since)| since.elapsed() < IDLE_TTL && !s.task.is_finished());
             !list.is_empty()
         });
         if idle.values().map(Vec::len).sum::<usize>() >= IDLE_LIMIT
@@ -700,7 +747,7 @@ impl WebsocketTransport {
         if list.len() >= IDLE_PER_KEY {
             list.remove(0);
         }
-        list.push((socket, Instant::now()));
+        list.push((IdleSocket::new(socket), Instant::now()));
     }
 
     fn is_disabled(&self, key: &str) -> bool {
@@ -966,7 +1013,7 @@ impl Next {
 
 /// 閒置期間連線可能已被上游或代理關閉：不阻塞地看一眼，已結束、出錯或有殘留訊框就不重用。
 fn still_open(conn: &mut Conn) -> bool {
-    conn.next().now_or_never().is_none()
+    next_frame(conn).now_or_never().is_none()
 }
 
 /// 路由、beta、thread/window、身分等握手設定都必須相容才可依舊 ID 續接。
@@ -1213,6 +1260,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn idle_pool_answers_pings_under_backpressure_and_releases_capacity_on_eviction() {
+        use tungstenite::protocol::Role;
+        let (client, peer) = tokio::io::duplex(32);
+        let io: Box<dyn Io> = Box::new(client);
+        let conn = WebSocketStream::from_raw_socket(MaybeTlsStream::Plain(io), Role::Client, None).await;
+        let mut peer = WebSocketStream::from_raw_socket(peer, Role::Server, None).await;
+        let capacity = Arc::new(tokio::sync::Semaphore::new(1));
+        let transport = WebsocketTransport::new("http://127.0.0.1:9", "", Arc::default(), None).unwrap();
+        transport.put_idle(
+            "s1".into(),
+            Socket {
+                conn,
+                buffered: VecDeque::new(),
+                opening_headers: Vec::new(),
+                deflate: false,
+                previous: None,
+                owner: Some("response-1".into()),
+                max_message: None,
+                _capacity: Some(Arc::clone(&capacity).acquire_owned().await.unwrap()),
+            },
+        );
+        // 每個 Pong 大於管道容量；即使沒有下一輪請求也須持續 flush。
+        tokio::time::timeout(Duration::from_secs(2), async {
+            for n in 0..3 {
+                let payload = vec![n; 120];
+                peer.send(Message::Ping(payload.clone().into())).await.unwrap();
+                assert_eq!(peer.next().await.unwrap().unwrap(), Message::Pong(payload.into()));
+            }
+        })
+        .await
+        .expect("idle connection must answer Ping without another request");
+        let mut resumed = transport.take_idle("s1", Some("response-1"), true).await.unwrap();
+        assert_eq!(capacity.available_permits(), 0);
+        let (sent, received) = tokio::join!(resumed.conn.send(Message::text("next-turn")), peer.next());
+        sent.unwrap();
+        assert_eq!(received.unwrap().unwrap(), Message::text("next-turn"));
+        transport.put_idle("s1".into(), resumed);
+        let (key, at) = transport.oldest_idle().unwrap();
+        assert!(transport.remove_idle(&key, at));
+        assert_eq!(
+            capacity.available_permits(),
+            1,
+            "eviction returns the permit synchronously"
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_secs(2), peer.next())
+                .await
+                .unwrap()
+                .is_none_or(|r| r.is_err())
+        );
+    }
+
+    #[tokio::test]
     async fn every_idle_connection_of_a_session_is_kept_and_the_continuation_owner_is_picked() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -1252,14 +1352,19 @@ mod tests {
 
         let owner = transport
             .take_idle("s1", Some("resp_a"), true)
+            .await
             .expect("the owner's connection");
         assert_eq!(owner.previous.as_ref().map(Snapshot::id), Some("resp_a"));
         // 最近放回的（resp_c）閒置時被上游關了：跳過，拿下一條
         let next = transport
             .take_idle("s1", None, false)
+            .await
             .expect("another open connection");
         assert_eq!(next.previous.as_ref().map(Snapshot::id), Some("resp_b"));
-        assert!(transport.take_idle("s1", None, false).is_none(), "nothing left");
+        assert!(
+            transport.take_idle("s1", None, false).await.is_none(),
+            "nothing left"
+        );
         transport.put_idle("retired".into(), next);
         transport.idle.lock().unwrap().get_mut("retired").unwrap()[0].1 = Instant::now() - IDLE_TTL;
         transport.reap_idle();
