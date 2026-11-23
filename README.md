@@ -46,8 +46,8 @@ cargo run -p tap-codex-kernel -- path/to/codex-kernel.json
 
 1. **在私有狀態準備。** 核對倉庫、待發提交與工作樹，更新 `Cargo.toml` 和 `Cargo.lock` 的版本，完成相關測試並將結果寫入該版說明。將實際版本代入 `python3 .github/scripts/check_release_notes.py vX.Y.Z`，檢查輸出的全文並隨版本提交，再建立本機標籤。
 2. **發版前才公開。** 執行 `gh api -X PATCH repos/holeenlu/tap-codex-kernel -F private=false`。確認 API 回傳 `visibility: public`，匿名取得倉庫也回 200，再推送版本提交與標籤。公開期間原始碼及既有 Release 也可被讀取。
-3. **等 GitHub 完成編譯與發布。** 標籤推送與手動重跑都先從對應標籤檢查說明。缺檔、缺章、空項或待補文字會中止發布。`release` 通過品質關卡後建置 linux/amd64 與 linux/arm64（glibc ≤ 2.34）。若標籤已存在、Release 尚未建立，以 `gh workflow run release.yml -R holeenlu/tap-codex-kernel --ref main -f tag=vX.Y.Z` 從原標籤重跑，不移動標籤。不可將只有標籤、工作已排隊或草稿視為發版成功。
-4. **驗收後立即恢復私有。** 確認 Actions 成功、Release 已發布、兩份二進位、兩份建置記錄、`SHA256SUMS`、`NOTICE` 齊全，核對來源提交及檔案雜湊，並比對 Release 正文與標籤內的五節說明、附加的建置資訊。隨即執行 `gh api -X PATCH repos/holeenlu/tap-codex-kernel -F private=true`，確認管理 API 回傳 `private: true`、匿名查詢倉庫與新版 Release 都回 404，且具讀取權的帳號仍可下載。不要為等待下游發版或部署延長公開時間。
+3. **等 GitHub 完成編譯與發布。** 標籤推送與手動重跑都先從對應標籤檢查說明。缺檔、缺章、空項或待補文字會中止發布。`release` 通過品質關卡後建置 linux/amd64 與 linux/arm64（glibc ≤ 2.34），以正式版發布並用 `--latest` 明確設為 Latest，讓 [releases/latest](https://github.com/holeenlu/tap-codex-kernel/releases/latest) 指向本次版本。若標籤已存在、Release 尚未建立，以 `gh workflow run release.yml -R holeenlu/tap-codex-kernel --ref main -f tag=vX.Y.Z` 從原標籤重跑，不移動標籤。不可將只有標籤、工作已排隊或草稿視為發版成功。
+4. **驗收後立即恢復私有。** 確認 Actions 成功、Release 已發布、兩份二進位、兩份建置記錄、`SHA256SUMS`、`NOTICE` 齊全，核對來源提交及檔案雜湊，並比對 Release 正文與標籤內的五節說明、附加的建置資訊。執行 `gh api repos/holeenlu/tap-codex-kernel/releases/latest --jq .tag_name`，確認回傳本次版本標籤。隨即執行 `gh api -X PATCH repos/holeenlu/tap-codex-kernel -F private=true`，確認管理 API 回傳 `private: true`、匿名查詢倉庫與新版 Release 都回 404，且具讀取權的帳號仍可下載。不要為等待下游發版或部署延長公開時間。
 5. **失敗或中止。** 先確認 Release 與附件的實際狀態；需要在當次窗口立即重試時沿用原標籤。若無法繼續，先恢復並核驗私有，再報告失敗或部分發布；下次重試重新開啟窗口。
 
 vm2api 發版準備工具 `scripts/release/sync_tap_payload.py` 選取已發布的最新 Tap 版本，核對兩個架構的建置記錄、大小及 SHA256，將附件鏡像到 vm2api，再由 `deploy/payload.json` 釘選。vm2api 映像包含這些二進位，容器啟動時將它們裝入掛載的 `bin/`。

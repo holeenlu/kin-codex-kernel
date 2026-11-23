@@ -98,4 +98,6 @@ jobs:
           gh release create "$RELEASE_TAG" dist/* --verify-tag \
             --title "tap-codex-kernel $RELEASE_TAG" \
             --notes-file "$notes" \
-            --prerelease
+            --latest
+          latest_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          test "$latest_tag" = "$RELEASE_TAG" || { echo "latest release $latest_tag != $RELEASE_TAG"; exit 1; }
