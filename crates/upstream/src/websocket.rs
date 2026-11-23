@@ -20,7 +20,9 @@ use std::time::{Duration, Instant};
 use crate::continuation::{self, Pending, Snapshot};
 use crate::timing::{Event, TurnTiming, millis};
 use bytes::Bytes;
-use futures_util::{FutureExt, SinkExt, Stream, StreamExt};
+#[cfg(test)]
+use futures_util::SinkExt;
+use futures_util::{FutureExt, Stream, StreamExt};
 use reqwest::header::{HeaderName, HeaderValue};
 use rustls::ClientConfig;
 use serde_json::Value;
@@ -791,9 +793,15 @@ impl Turn {
                         let _ = cmd.written.send(false); continue;
                     }
                     let payload = serde_json::json!({"type":"response.interrupt","mode":"discard_partial_items","response_id":cmd.response_id});
-                    let written = matches!(tokio::time::timeout(Duration::from_secs(2), self.socket.conn.send(Message::text(payload.to_string()))).await, Ok(Ok(())));
+                    let written = matches!(tokio::time::timeout(Duration::from_secs(2), send_create(&mut self.socket.conn, payload.to_string(), &mut self.socket.buffered, None)).await, Ok(Ok(true)));
                     let _ = cmd.written.send(written);
-                    if !written { return Next::Broken }
+                    if !written {
+                        // 中斷寫入失敗時，已到達的終態與用量仍須交付；這條線不再重用。
+                        self.key = None;
+                        self.interrupt = None;
+                        self.socket.buffered.push_back(Next::Broken);
+                        return self.socket.next_frame().await;
+                    }
                     self.awaiting_ack = true;
                 }
                 next = async {
@@ -1256,6 +1264,95 @@ mod tests {
         assert!(
             !still_open(&mut conn),
             "a connection closed while idle is dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_interrupt_write_failure_keeps_the_arriving_terminal_usage() {
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+        use tokio::io::ReadBuf;
+        use tungstenite::protocol::Role;
+
+        // 終態只在寫入失敗後變成可讀，避免 select 先讀到終態而沒有測到錯誤分支。
+        struct FailedWriter {
+            reply: Bytes,
+            attempted: bool,
+        }
+        impl AsyncRead for FailedWriter {
+            fn poll_read(
+                mut self: Pin<&mut Self>,
+                _: &mut Context<'_>,
+                buf: &mut ReadBuf<'_>,
+            ) -> Poll<io::Result<()>> {
+                if !self.attempted {
+                    return Poll::Pending;
+                }
+                let n = buf.remaining().min(self.reply.len());
+                buf.put_slice(&self.reply.split_to(n));
+                Poll::Ready(Ok(()))
+            }
+        }
+        impl AsyncWrite for FailedWriter {
+            fn poll_write(
+                mut self: Pin<&mut Self>,
+                _: &mut Context<'_>,
+                _: &[u8],
+            ) -> Poll<io::Result<usize>> {
+                self.attempted = true;
+                Poll::Ready(Err(io::Error::from(io::ErrorKind::BrokenPipe)))
+            }
+            fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+                Poll::Ready(Ok(()))
+            }
+            fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+                Poll::Ready(Ok(()))
+            }
+        }
+        let completed = r#"{"type":"response.completed","response":{"id":"r1","usage":{"input_tokens":5,"output_tokens":2}}}"#;
+        let mut peer =
+            tungstenite::WebSocket::from_raw_socket(std::io::Cursor::new(Vec::new()), Role::Server, None);
+        peer.send(Message::text(completed)).unwrap();
+        let io: Box<dyn Io> = Box::new(FailedWriter {
+            reply: peer.into_inner().into_inner().into(),
+            attempted: false,
+        });
+        let conn = WebSocketStream::from_raw_socket(MaybeTlsStream::Plain(io), Role::Client, None).await;
+        let transport =
+            Arc::new(WebsocketTransport::new("http://127.0.0.1:9", "", Arc::default(), None).unwrap());
+        let mut turn = Turn {
+            passthrough: Vec::new(),
+            first: String::new(),
+            socket: Socket {
+                conn,
+                buffered: VecDeque::new(),
+                opening_headers: Vec::new(),
+                deflate: false,
+                previous: None,
+                owner: None,
+                max_message: None,
+                _capacity: None,
+            },
+            pending: None,
+            timing: TurnTiming::default(),
+            interrupt: None,
+            response_id: Some("r1".into()),
+            awaiting_ack: false,
+            deferred_terminal: None,
+            key: Some("s1".into()),
+            transport,
+        };
+        let interrupt = turn.interrupt_channel();
+        let (written, next) = tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::join!(interrupt.forward("r1".into()), turn.next_controlled())
+        })
+        .await
+        .unwrap();
+        assert!(!written);
+        assert!(matches!(next, Next::Text(text) if text == completed));
+        assert!(
+            turn.key.is_none(),
+            "failed writes cannot return the socket to the pool"
         );
     }
 
