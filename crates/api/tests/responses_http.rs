@@ -277,6 +277,72 @@ async fn an_upstream_429_keeps_the_status_text_and_retry_after() {
 }
 
 #[tokio::test]
+async fn non_stream_returns_terminal_events_before_the_upstream_closes() {
+    use futures_util::{StreamExt, stream};
+    use std::convert::Infallible;
+    use std::time::Duration;
+
+    let errors = [
+        "api_key_spend_limit_exceeded",
+        "organization_spend_limit_exceeded",
+        "project_spend_limit_exceeded",
+        "bio_policy",
+        "cyber_policy",
+        "policy_capacity_unavailable",
+        "server_is_overloaded",
+    ];
+    let mut events = vec![json!({
+        "type": "response.completed",
+        "response": {"id": "r1", "usage": {"input_tokens": 4, "output_tokens": 2}}
+    })];
+    for code in errors {
+        let detail = json!({"code": code, "message": "rejected", "headers": {"Retry-After": "7"}});
+        events.push(json!({"type": "error", "error": detail}));
+        events.push(json!({"type": "response.failed", "response": {"error": detail}}));
+    }
+    for event in events {
+        // 把一個多行 SSE 事件切成數個 chunk，送完仍保持連線，驗證不依賴 EOF。
+        let encoded = event.to_string();
+        let split = encoded.find(',').unwrap();
+        let raw = format!(
+            "data: {}\r\ndata: {}\r\n\r\n",
+            &encoded[..=split],
+            &encoded[split + 1..]
+        );
+        let pieces: Vec<_> = raw
+            .as_bytes()
+            .chunks(7)
+            .map(|b| Ok::<_, Infallible>(axum::body::Bytes::copy_from_slice(b)))
+            .collect();
+        let upstream = axum::Router::new().route(
+            "/responses",
+            post(move || async move {
+                (
+                    [("content-type", "text/event-stream")],
+                    Body::from_stream(stream::iter(pieces).chain(stream::pending())),
+                )
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, upstream).await.unwrap() });
+        let dir = tempfile::tempdir().unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(2), async {
+            let response = kernel(&format!("http://{addr}"), &dir)
+                .oneshot(envelope(false))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            serde_json::from_slice::<Value>(&response.into_body().collect().await.unwrap().to_bytes())
+                .unwrap()
+        })
+        .await;
+        server.abort();
+        assert_eq!(result.expect("terminal event must not wait for EOF"), event);
+    }
+}
+
+#[tokio::test]
 async fn a_refused_connection_is_a_transport_error_that_was_not_sent() {
     let dir = tempfile::tempdir().unwrap();
     let response = kernel("http://127.0.0.1:9/backend-api/codex", &dir)

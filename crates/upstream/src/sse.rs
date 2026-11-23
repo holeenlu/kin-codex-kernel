@@ -1,4 +1,4 @@
-//! 非串流請求的 SSE 彙整：讀完上游串流，回傳最後一個終態事件（與上游核心相同）。
+//! 非串流請求的 SSE 彙整：完整終態事件到達後即可回傳，不等待上游關閉串流。
 
 use serde_json::Value;
 
@@ -72,6 +72,10 @@ impl TerminalDecoder {
         self.consume_line();
         self.flush();
         self.last
+    }
+
+    pub(crate) fn take_terminal(&mut self) -> Option<Value> {
+        self.last.take()
     }
 }
 

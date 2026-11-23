@@ -547,6 +547,9 @@ impl Accepted {
                 message: e.to_string(),
                 sent: UpstreamSent::Yes,
             })?;
+            if let Some(event) = decoder.take_terminal() {
+                return Ok(event);
+            }
         }
         decoder.finish().ok_or_else(|| KernelError::UpstreamTransport {
             message: "upstream stream ended without a terminal event".to_owned(),
