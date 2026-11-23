@@ -68,8 +68,9 @@ openssl-sys = "=0.9.118"
 # WebSocket：官方用 openai-oss-forks 的 tokio-tungstenite／tungstenite 分支（permessage-deflate 由分支提供），
 # TLS 走 rustls 加 aws-lc-rs（版本同官方 rust-v0.171.0 的 Cargo.lock）。不開 tokio-tungstenite 的 `connect`／`proxy`：
 # 那會讀環境變數裡的代理；連線由核心自己建立（直連或 socks5h），再交給 `client_async_tls_with_config`。
-tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "7447c427513cfe685f236e1ac0513c4ea3dd9c0b", default-features = false, features = ["handshake", "rustls-tls-native-roots", "stream"] }
-tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "bc589d684755a8c02da0fc7e58d0861cbfc306f1", default-features = false, features = ["deflate", "handshake"] }
+# main 的訊框日誌修正不記錄送出內容；握手、壓縮與 TLS 行為保持實錄基準。
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "7a920470d62138955446b64220c7609e46ad770e", default-features = false, features = ["handshake", "rustls-tls-native-roots", "stream"] }
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "e19950ef7828cb311e6d51a6bedcebf0192e055c", default-features = false, features = ["deflate", "handshake"] }
 rustls = { version = "=0.23.46", default-features = false, features = ["aws_lc_rs", "logging", "prefer-post-quantum", "std", "tls12"] }
 rustls-native-certs = "=0.8.3"
 # rustls 的 provider 與 tokio-rustls 也釘在官方版本：provider 決定群組與簽章演算法。
