@@ -132,3 +132,11 @@ CPR 由 v3.54.3 的 `6900da36eedb3099d43c8c9bf5b8b97d82d15688` 對齊至 v3.54.4
 | `a2c46e0d` | `release/version.yaml` 更新 CPR 發布頻道 | 僅記錄來源基線，保留 Tap 原有 Release。 |
 
 本次候選使用 Rust 1.99.1。fmt、Clippy 與 cargo-deny 四類檢查通過，workspace 測試 156 項通過。Linux amd64 與 arm64 release 建置均通過 glibc 2.34 檢查。以 vm2api `2eb6f94107e815443059038e746f060976996758` 的鎖版相依、候選 amd64 二進位與四份 CLI 基準，在斷網容器執行契約測試，87 項通過、0 失敗，另有 11 個未提供核心時使用的占位案例略過。涵蓋 ABI 1、ABI 2 與共用核心的控制面呼叫路徑。
+
+### 2026-11-23 main 雙來源同步
+
+CPR main 由 `a2c46e0dc793cf0e903f5c4fc913706ff5066875` 對齊至 `037cbcd6052fdb5741daf7ee8ef0f2c487319958`，共 4 筆。官方來源改為 `https://github.com/openai/codex.git` 的 main，由既有正式版起點 `ccf9be8cc458bd6b8336fe84d68d8893f2691a5e` 逐提交比較至 `93f105d29b31e524facc32706993e76cad370b2f`，共 252 筆；已查明 release 分支的 statusline 回補及版本差異。來源進度與出站實錄分開維護，後者仍是 `rust-v0.171.0` Linux x64。
+
+本輪修正 HTTP 非串流等待 EOF、巢狀 Retry-After 解析、閒置 WebSocket Pong 背壓，以及中斷寫入失敗時遺失已到達用量；更新 cookie 0.18.3 與官方 WS 訊框日誌修正。保留 Tap 原始用量、出站身分、帳號隔離及控制面邊界。完整 256 筆來源處置、保留差異、基準與二進位雜湊見[本輪同步紀錄](docs/sync/2026-11-23-main.md)。
+
+受測程式樹為 `e37d0b9737910890e85898b2393ef4d567239286`。Rust 1.99.1 的 fmt、Clippy、161 項 workspace 測試及 cargo-deny 四類檢查通過；Linux amd64／arm64 release 均通過 glibc 2.34 檢查。以 vm2api `bbee78c8aaf0ac03c5dea801218d253af6c723d0` 的鎖版輸入與候選 amd64 二進位驗收，87 項契約通過、0 失敗，11 個占位案例略過，涵蓋 ABI 1／2。後續差異僅為已檢查文件，可將相同驗證輸入映射至交付樹。沒有改標籤、Release 或部署；下一輪兩來源增量起點即上述目標 SHA。

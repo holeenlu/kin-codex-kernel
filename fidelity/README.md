@@ -59,7 +59,9 @@ node fidelity/tools/derive-expected-tls.mjs /tmp/kc-session/tls.json /tmp/kc-ses
 
 ## 目前相容目標
 
-本專案對齊官方 `rust-v0.171.0`（`ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`）。2026-11-22 在斷網 Debian 容器使用 npm 發行的 Linux x64 二進位，完成 TUI WebSocket、拒絕握手轉 HTTP、兩次 401 換票、搜尋、圖片生成／編輯及 exec 回合。當版基準保存契約測試使用的四份 JSON 摘要。HTTP 回應可使用 gzip 或 zstd，協商值為 `accept-encoding: zstd,gzip`。以本機新建置的 Linux amd64 Tap 執行：
+**原始碼進度：** 2026-11-23 已逐提交審查並在 Tap 適用範圍對齊官方 `openai/codex` main `93f105d29b31e524facc32706993e76cad370b2f`。這不是 CLI 實錄版本；明示的出站差異及逐提交處置見[main 同步紀錄](../docs/sync/2026-11-23-main.md)。
+
+**出站實錄相容目標：** 官方正式版 `rust-v0.171.0`（`ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`）。2026-11-22 在斷網 Debian 容器使用 npm 發行的 Linux x64 二進位，完成 TUI WebSocket、拒絕握手轉 HTTP、兩次 401 換票、搜尋、圖片生成／編輯及 exec 回合。當版基準保存契約測試使用的四份 JSON 摘要。HTTP 回應可使用 gzip 或 zstd，協商值為 `accept-encoding: zstd,gzip`。以本機新建置的 Linux amd64 Tap 執行：
 
 ```bash
 baseline=/path/to/tap-codex-kernel/fidelity/baseline/codex-cli-0.171.0-linux-x64
@@ -71,6 +73,8 @@ node scripts/kernel-contract.mjs --tap /path/to/tap-codex-kernel-linux-amd64 \
 在 vm2api `38d53a640` 上以這四份基準執行契約測試，86 項通過，11 個沒有設定測試目標時使用的占位案例略過。唯一失敗在 `node-shared.contract.test.mjs`：代理熔斷回報 `proxy_unavailable`、送出狀態為 `not_sent` 時，控制面的 `isCodexFailoverError` 回傳 false。同一斷言在 vm2api 釘選的 Tap v0.4.1 也失敗。 2026-11-23 在 vm2api 共用換槽判斷補上 `proxy_unavailable` 的送出狀態檢查後，以同一組基準重跑，87 項通過、11 個占位案例略過，全部實際案例通過。
 
 2026-11-23 同步 CPR v3.54.4 時，重新核對官方 CLI 二進位雜湊，並以候選 Tap 重跑上述四份基準。驗收結果見[同步紀錄](../ARCHITECTURE.md#2026-11-23-同步)。
+
+同日 main 雙來源同步沒有變更 User-Agent 版本、TLS provider 或基準 JSON。採用的 WS fork 差異只修正出站 payload 日誌；cookie 升級及傳輸修正以候選 amd64 二進位搭配四份基準重新驗收，87 項通過、0 失敗、11 個占位案例略過。與官方 main 的 exclude 預設及 Orca 別名正規化仍有明示差異；這份正式版實錄不代表 main 全部出站分支。完整驗收輸入及四份 JSON 的 SHA256 見 [main 同步紀錄](../docs/sync/2026-11-23-main.md#驗證)。
 
 ## 基準清單
 

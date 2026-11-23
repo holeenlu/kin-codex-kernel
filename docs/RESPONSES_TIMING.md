@@ -13,15 +13,15 @@
 - `request_mode` 區分未改寫的請求（as_received）、WS 首次完整（full）、完整回放（full_replay）和原生增量（incremental）。`cache_miss` 是上游明確拒絕增量 ID；`upstream_attempts` 包含明確 401 的憑據復原，`ws_send_attempts` 計算 WS 寫入嘗試。出站撥號含代理交涉（dial_ms）、TLS 與升級各為最近一次有量到的握手階段耗時；重用不虛報握手。WS 的 `send_complete_ms` 是寫完的時刻；HTTP 客戶端只提供 `http_headers_ms`，不以它冒充寫完。降級理由、握手狀態和次數獨立記錄。
 - Node 的 `first_generated_event_type`、`first_release_type`、`first_text_ms`、`client_first_write_ms` 與 `client_first_write_source_type` 分別是觀察生成、觸發放行、觀察可見文字、實際開始對客寫入與該次寫入對應的來源事件。首放行會送出先前暫存的協議事件，因此首寫的來源可能是 response.created。客戶端畫面首次顯示文字仍須在客戶端量，兩端的毫秒欄位不能直接相減。
 
-**借線及送出前檢查。** 借用任何 socket 都比對帳號、憑據、會話、thread/window、路由、協議及握手設定；每輪追蹤 ID 與 turn metadata 裡的 turn_id、root_turn_id、turn_started_at_unix_ms 不影響相容性。每條線保存其協商的 `x-codex-websocket-max-message-bytes`；以最終 create 的未壓縮 UTF-8 長度比對，含完整補送。超過 1 MiB 時拆成不大於 1 MiB 的連續幀；整則文字仍是一次 create，計為一次 `ws_send_attempts`。預熱（generate=false）不改走 HTTP。純增量原線失效時回重放錯誤；已補送的請求不因大小再改走 HTTP。強制 HTTP 的請求若標記為原生 WS 續接且只提供增量，核心在送出前回錯誤。非串流 HTTP 分塊讀取，回最後一個終態；單一 SSE 事件上限 64 MiB，整輪沒有這個上限。
+**借線及送出前檢查。** 借用任何 socket 都比對帳號、憑據、會話、thread/window、路由、協議及握手設定；每輪追蹤 ID 與 turn metadata 裡的 turn_id、root_turn_id、turn_started_at_unix_ms 不影響相容性。每條線保存其協商的 `x-codex-websocket-max-message-bytes`；以最終 create 的未壓縮 UTF-8 長度比對，含完整補送。超過 1 MiB 時拆成不大於 1 MiB 的連續幀；整則文字仍是一次 create，計為一次 `ws_send_attempts`。預熱（generate=false）不改走 HTTP。純增量原線失效時回重放錯誤；已補送的請求不因大小再改走 HTTP。強制 HTTP 的請求若標記為原生 WS 續接且只提供增量，核心在送出前回錯誤。非串流 HTTP 分塊讀取，完整終態事件到達後即回傳，不等待上游關閉串流；單一 SSE 事件上限 64 MiB，整輪沒有這個上限。
 
-**主動中斷。** 串流回應的私有頭 `x-tap-interrupt` 為 `websocket` 或 `unavailable`；沒有此頭的舊核心維持舊契約。控制面可發 `POST /internal/v1/interrupt`，以內部 token 帶 `{request_id,response_id}`。僅該輪已建立、ID 相符的活躍 WS 接受 `discard_partial_items`；204 是控制幀已寫入，不是上游承諾。真正的 accepted／failed 與終態來自原推理串流。無法轉送回 409，不中止生成；客戶端斷線照舊走 cancel。只有上游 incomplete_details.reason 明示 interrupted 且提供最終 output 陣列時，才用該陣列建立可驗證的續接前綴。
+**主動中斷。** 串流回應的私有頭 `x-tap-interrupt` 為 `websocket` 或 `unavailable`；沒有此頭的舊核心維持舊契約。控制面可發 `POST /internal/v1/interrupt`，以內部 token 帶 `{request_id,response_id}`。僅該輪已建立、ID 相符的活躍 WS 接受 `discard_partial_items`；204 是控制幀已寫入，不是上游承諾。真正的 accepted／failed 與終態來自原推理串流。控制幀寫入失敗時仍交付已到達的終態及原始用量，該線不再重用。無法轉送回 409，不中止生成；客戶端斷線照舊走 cancel。只有上游 incomplete_details.reason 明示 interrupted 且提供最終 output 陣列時，才用該陣列建立可驗證的續接前綴。
 
 **每輪回應標頭。** WS 握手的 `x-codex-*` 回應標頭只屬於新線的首輪。重用同一條線時，不把舊額度或 `x-codex-turn-state` 當成本輪資訊；當輪的流內事件照常轉送。協商的最大訊息長度和壓縮仍適用於整條實體連線。
 
 **失敗事實。** `x-tap-upstream-error` 是控制面使用的私有收據，stage 區分 HTTP（`http`）、WS 握手的明示 429（`websocket_handshake`）及 WS 首個錯誤事件（`websocket_first_event`）。收據保留明示 status、code、type、request_id、retry_after，缺值為 null。初次握手遇 429 時，即使是完整請求也不再握手或改送 HTTP；預熱同樣回原 429。此時 `x-kin-upstream-sent: 0` 指沒有送出模型請求；若前一次 create 寫出後未獲回應，換線才遇 429，則為 `unknown`；共享模式若先前已有業務 401 明確證實送達，換票重試的握手 429 不會把整輪改成未送出。首個 WS 事件若為 `invalid_request_error` 且狀態為 400 或未提供，回應保留上游的 `error` 物件，包括 `param`。缺少狀態時對呼叫端回 400，私有收據仍保留缺值。錯誤摘錄上限為 64 KiB；串流已開始時不改寫 HTTP 狀態。vm2api 不把這份收據轉給客戶端。
 
-**容量與期限。** 單帳號與共享程序設定都可放 `ws_limits`。同一代理 URL 的帳號可共用實體 WS 名額與握手名額，仍各用自己的 socket、cookie 和憑據。容量滿時先回收同一出口最舊的閒置線；活躍線不被回收。閒置線在借還與背景檢查（30 秒）回收，TTL 為 240 秒。
+**容量與期限。** 單帳號與共享程序設定都可放 `ws_limits`。同一代理 URL 的帳號可共用實體 WS 名額與握手名額，仍各用自己的 socket、cookie 和憑據。容量滿時先回收同一出口最舊的閒置線；活躍線不被回收。閒置線持續處理 Ping/Pong，包括 Pong 寫入背壓；收到關閉或異常業務訊息便淘汰。借還與背景檢查（30 秒）清除池項目，TTL 為 240 秒，借出的線不受池內背景讀取影響。
 
 | 設定 | 預設 | vm2api 程序環境覆寫 |
 | --- | ---: | --- |
