@@ -152,3 +152,7 @@ CPR main 起訖均為 `037cbcd6052fdb5741daf7ee8ef0f2c487319958`。官方 Codex 
 CPR main 由 `037cbcd6052fdb5741daf7ee8ef0f2c487319958` 對齊至 `21622eeacdab919013408a4b77f5536ed8888f32`，共 6 筆。官方 Codex main 由 `6aaf2a86b198bb0ee8f9d995e79155ad5c7f6357` 對齊至 `75df5098a6d92b40dc61e7a9964233ce9c359677`，共 33 筆。HTTP 推理和 WS 握手回 429 時保留上游額度標頭。HTTP 成功回應與 WS 首次接受生成時交付模型目錄 ETag，預熱後可由首輪生成讀取。兩項變更透過既有 ABI 回應標頭交付，逐提交處置見[晚間同步紀錄](docs/sync/2026-11-24-evening-main.md)。
 
 受測 Git 樹為 `49299fcbb5d73982bc1d1aa1d3c85d0932fab8bc`。Rust 1.99.1 的 fmt、Clippy、164 項工作區測試及 cargo-deny 四類檢查通過。Linux amd64／arm64 建置的最高 GLIBC 均為 2.34，候選 amd64 通過 vm2api ABI 1／2 契約 87 項，11 個占位案例略過。晚間同步延續官方正式版 0.171.0 的 Linux amd64 四份實錄基準。
+
+### 2026-11-25 main 雙來源同步
+
+CPR main 維持 `21622eeacdab919013408a4b77f5536ed8888f32`。官方 Codex main 由 `75df5098a6d92b40dc61e7a9964233ce9c359677` 對齊至 `44308610ef5cbc03d149707735878b0c8743b2df`，共 22 筆。Tap 已具備非串流回應僅完整解析終態的行為，其餘變更無需移植。本輪交付同步紀錄，出站實錄仍為官方正式版 0.171.0 Linux amd64。逐提交處置與驗證見[本輪同步紀錄](docs/sync/2026-11-25-main.md)。
