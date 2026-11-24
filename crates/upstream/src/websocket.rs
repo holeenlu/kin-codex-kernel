@@ -96,6 +96,8 @@ struct Socket {
     buffered: VecDeque<Next>,
     /// 握手回應頭只交給開啟這條連線的那一輪；協商值另存於 deflate 與 max_message。
     opening_headers: Passthrough,
+    /// 先保留給第一輪實際推理，預熱只消耗一般握手標頭。
+    models_etag: Option<HeaderValue>,
     deflate: bool,
     previous: Option<Snapshot>,
     owner: Option<String>,
@@ -418,9 +420,14 @@ impl WebsocketTransport {
             if let Ok(event) = serde_json::from_str::<Event>(&first) {
                 timing.event(&event);
             }
-            let passthrough = std::mem::take(&mut socket.opening_headers);
+            let mut passthrough = std::mem::take(&mut socket.opening_headers);
             if let Some(err) = first_event_error(&first, &passthrough) {
                 return Err(err);
+            }
+            if !policy.warmup()
+                && let Some(etag) = socket.models_etag.take()
+            {
+                passthrough.push((HeaderName::from_static(crate::headers::MODELS_ETAG), etag));
             }
             return Ok(Outcome::Accepted(Box::new(Turn {
                 passthrough,
@@ -586,6 +593,10 @@ impl WebsocketTransport {
                     conn,
                     buffered: VecDeque::new(),
                     opening_headers,
+                    models_etag: response
+                        .headers()
+                        .get(crate::headers::MODELS_ETAG)
+                        .and_then(|value| HeaderValue::from_str(value.to_str().ok()?).ok()),
                     deflate,
                     max_message: response
                         .headers()
@@ -1339,6 +1350,7 @@ mod tests {
                 conn,
                 buffered: VecDeque::new(),
                 opening_headers: Vec::new(),
+                models_etag: None,
                 deflate: false,
                 previous: None,
                 owner: None,
@@ -1383,6 +1395,7 @@ mod tests {
                 conn,
                 buffered: VecDeque::new(),
                 opening_headers: Vec::new(),
+                models_etag: None,
                 deflate: false,
                 previous: None,
                 owner: Some("response-1".into()),
@@ -1442,6 +1455,7 @@ mod tests {
             conn,
             buffered: VecDeque::new(),
             opening_headers: Vec::new(),
+            models_etag: None,
             deflate: false,
             previous: previous.map(Snapshot::for_test),
             owner: previous.map(str::to_owned),

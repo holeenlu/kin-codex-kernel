@@ -21,6 +21,8 @@ HTTP 請求與 WebSocket 握手的 `x-codex-routing-hint` 取自本輪請求本�
 
 **每輪回應標頭。** WS 握手的 `x-codex-*` 回應標頭只屬於新線的首輪。重用同一條線時，不把舊額度或 `x-codex-turn-state` 當成本輪資訊；當輪的流內事件照常轉送。協商的最大訊息長度和壓縮仍適用於整條實體連線。
 
+**模型目錄 ETag。** HTTP 成功回應保留上游的 `x-models-etag`。WS 在實體線首次接受生成時交付握手取得的 ETag，預熱會將它留給首輪生成。同一條線之後的回合只照常轉送當輪事件。新的握手有自己的 ETag，更新模型目錄由呼叫端決定。
+
 **失敗事實。** `x-tap-upstream-error` 是控制面使用的私有收據，stage 區分 HTTP（`http`）、WS 握手的明示 429（`websocket_handshake`）及 WS 首個錯誤事件（`websocket_first_event`）。收據保留明示 status、code、type、request_id、retry_after，缺值為 null。初次握手遇 429 時，即使是完整請求也不再握手或改送 HTTP；預熱同樣回原 429。此時 `x-kin-upstream-sent: 0` 指沒有送出模型請求；若前一次 create 寫出後未獲回應，換線才遇 429，則為 `unknown`；共享模式若先前已有業務 401 明確證實送達，換票重試的握手 429 不會把整輪改成未送出。首個 WS 事件若為 `invalid_request_error` 且狀態為 400 或未提供，回應保留上游的 `error` 物件，包括 `param`。缺少狀態時對呼叫端回 400，私有收據仍保留缺值。錯誤摘錄上限為 64 KiB；串流已開始時不改寫 HTTP 狀態。vm2api 不把這份收據轉給客戶端。
 
 HTTP 推理或 WS 握手回 429 時，Tap 另行保留額度與點數標頭，包括 `x-codex-active-limit`、具名額度桶與各視窗重置時間。控制面使用標頭的原始名稱和值決定額度歸屬。上游拒絕的狀態、送出事實與重送判斷沿用前述契約。

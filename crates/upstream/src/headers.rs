@@ -20,6 +20,8 @@
 use reqwest::header::{HeaderName, HeaderValue};
 use tap_contract::envelope::ResponsesEnvelope;
 use tap_credentials::Credential;
+
+pub(super) const MODELS_ETAG: &str = "x-models-etag";
 use tap_identity::Identity;
 
 /// 一個出站標頭的來源。

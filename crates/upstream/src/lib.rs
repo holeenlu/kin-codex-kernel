@@ -483,12 +483,19 @@ impl HttpUpstream {
         if !status.is_success() {
             return Err(failure(response, self.read_idle, cancel).await);
         }
-        let passthrough = response
+        let mut passthrough: Vec<_> = response
             .headers()
             .iter()
             .filter(|(name, _)| name.as_str().starts_with("x-codex-"))
             .map(|(name, value)| (name.clone(), value.clone()))
             .collect();
+        if let Some(etag) = response
+            .headers()
+            .get(headers::MODELS_ETAG)
+            .filter(|v| v.to_str().is_ok())
+        {
+            passthrough.push((HeaderName::from_static(headers::MODELS_ETAG), etag.clone()));
+        }
         Ok(Accepted {
             model,
             passthrough,

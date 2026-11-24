@@ -70,6 +70,9 @@ async fn start_ws_upstream(mode: Mode) -> (String, Seen) {
                     response
                         .headers_mut()
                         .insert("x-codex-primary-used-percent", "12".parse().unwrap());
+                    response
+                        .headers_mut()
+                        .insert("x-models-etag", format!("catalog-{index}").parse().unwrap());
                     if mode == Mode::TurnMetadata {
                         response
                             .headers_mut()
@@ -141,7 +144,7 @@ async fn start_ws_upstream(mode: Mode) -> (String, Seen) {
                     } else if mode == Mode::TurnMetadata && count == 3 {
                         vec![
                             r#"{"type":"codex.rate_limits","rate_limits":{"primary":{"used_percent":37}}}"#,
-                            r#"{"type":"codex.response.metadata","headers":{"x-codex-turn-state":"third-state"}}"#,
+                            r#"{"type":"codex.response.metadata","headers":{"x-codex-turn-state":"third-state","x-models-etag":"third-catalog"}}"#,
                             r#"{"type":"response.completed","response":{"id":"r3","status":"completed"}}"#,
                         ]
                     } else if matches!(mode, Mode::CacheMiss | Mode::LimitedCacheMiss | Mode::WithOutput) {
@@ -234,6 +237,13 @@ async fn streams_websocket_events_as_sse_and_reuses_the_connection() {
         assert_eq!(
             response
                 .headers()
+                .get("x-models-etag")
+                .map(|v| v.to_str().unwrap()),
+            (i == 0).then_some("catalog-0")
+        );
+        assert_eq!(
+            response
+                .headers()
                 .get("x-codex-primary-used-percent")
                 .map(|v| v.to_str().unwrap()),
             (i == 0).then_some("12")
@@ -282,6 +292,47 @@ event: response\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r
             "x-codex-routing-hint",
             "sec-websocket-extensions",
         ]
+    );
+}
+
+#[tokio::test]
+async fn handshake_catalog_etag_is_delivered_to_the_first_generation_after_warmup() {
+    let (base, seen) = start_ws_upstream(Mode::Complete).await;
+    let dir = tempfile::tempdir().unwrap();
+    let app = kernel(&base, &dir);
+    for (session, warmup, etag) in [
+        ("s1", true, None),
+        ("s1", false, Some("catalog-0")),
+        ("s1", false, None),
+        ("new", false, Some("catalog-1")),
+    ] {
+        let mut request = envelope(true);
+        *request.body_mut() = Body::from(
+            serde_json::json!({
+                "body":{"model":"gpt-5.5","input":[],"generate":!warmup,"store":false},
+                "stream":true,"session":{"session_id":session},
+                "options":{"upstream_transport":"prefer_websocket"}
+            })
+            .to_string(),
+        );
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("x-models-etag")
+                .map(|v| v.to_str().unwrap()),
+            etag
+        );
+        response.into_body().collect().await.unwrap();
+    }
+    let calls = seen.0.lock().unwrap();
+    assert_eq!(
+        calls
+            .iter()
+            .map(|(_, messages)| messages.len())
+            .collect::<Vec<_>>(),
+        [3, 1]
     );
 }
 
@@ -351,6 +402,7 @@ async fn opening_headers_and_live_metadata_belong_only_to_their_turn() {
         let body = std::str::from_utf8(&bytes).unwrap();
         assert_eq!(body.contains(r#""used_percent":37"#), round == 3);
         assert_eq!(body.contains(r#""x-codex-turn-state":"third-state""#), round == 3);
+        assert_eq!(body.contains(r#""x-models-etag":"third-catalog""#), round == 3);
     }
     let seen = seen.0.lock().unwrap();
     assert_eq!(seen.len(), 1);

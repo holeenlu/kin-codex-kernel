@@ -46,6 +46,7 @@ async fn fake_upstream(State((seen, plan)): State<(Seen, u16)>, headers: HeaderM
             [
                 ("content-type", "text/event-stream"),
                 ("x-codex-primary-used-percent", "12"),
+                ("x-models-etag", "http-catalog"),
                 ("x-request-id", "not-forwarded"),
             ],
             SSE,
@@ -214,6 +215,7 @@ async fn streams_the_upstream_sse_unchanged_with_the_control_plane_headers() {
     assert_eq!(headers["x-model"], "gpt-5.5");
     assert_eq!(headers["x-terminal-state"], "verified");
     assert_eq!(headers["x-codex-primary-used-percent"], "12");
+    assert_eq!(headers["x-models-etag"], "http-catalog");
     assert!(headers.get("x-request-id").is_none());
     let body = response.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(body, SSE.as_bytes());
