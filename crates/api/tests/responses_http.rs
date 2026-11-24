@@ -19,6 +19,8 @@ use tower::ServiceExt;
 
 const TOKEN: &str = "test-internal-token";
 const SSE: &str = "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\"}}\n\n\
+event: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"reasoning\",\"encrypted_content\":\"opaque\"}}\n\n\
+event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\",\"sequence_number\":7}\n\n\
 event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"status\":\"completed\"}}\n\n";
 
 /// 假上游收到的一個請求：依序的標頭，以及原始本體。
@@ -111,7 +113,8 @@ fn envelope(stream: bool) -> Request<Body> {
     // 手寫 JSON：本體的欄位順序要原樣送到上游（json! 會排序，不能用）。
     let body = format!(
         r#"{{"body":{{"model":"gpt-5.5","instructions":"x","input":[],"stream":{stream}}},
-        "headers":{{"session-id":"s1","x-codex-window-id":"s1:0","openai-beta":"dropped","x-evil":"no"}},
+        "headers":{{"session-id":"s1","x-codex-window-id":"s1:0","openai-beta":"dropped","x-evil":"no",
+        "x-codex-exclude-stream-fields":"delta.sequence_number,reasoning.added.encrypted_content"}},
         "stream":{stream},"session":{{"session_id":"s1"}},"request_id":"req-1",
         "options":{{"user_agent":"project/1","client_environment":{{
             "os_release":{{"id":"ubuntu","version_id":"24.04"}},"machine":"x86_64","term":"xterm-256color"}}}}}}"#

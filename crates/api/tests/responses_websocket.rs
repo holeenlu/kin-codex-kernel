@@ -154,6 +154,8 @@ async fn start_ws_upstream(mode: Mode) -> (String, Seen) {
                     } else {
                         vec![
                             r#"{"type":"response.created","response":{"id":"r1"}}"#,
+                            r#"{"type":"response.output_item.added","item":{"type":"reasoning","encrypted_content":"opaque"}}"#,
+                            r#"{"type":"response.output_text.delta","delta":"ok","sequence_number":7}"#,
                             r#"{"type":"response.completed","response":{"id":"r1","status":"completed"}}"#,
                         ]
                     };
@@ -198,7 +200,8 @@ fn kernel(base: &str, dir: &tempfile::TempDir) -> axum::Router {
 fn envelope(stream: bool) -> Request<Body> {
     let body = format!(
         r#"{{"body":{{"model":"gpt-5.5","input":[],"stream":{stream}}},
-        "headers":{{"session-id":"s1","x-codex-window-id":"s1:0"}},
+        "headers":{{"session-id":"s1","x-codex-window-id":"s1:0",
+        "x-codex-exclude-stream-fields":"delta.sequence_number,reasoning.added.encrypted_content"}},
         "stream":{stream},"session":{{"session_id":"s1"}},"request_id":"req-1",
         "options":{{"upstream_transport":"prefer_websocket"}}}}"#
     );
@@ -239,6 +242,8 @@ async fn streams_websocket_events_as_sse_and_reuses_the_connection() {
         assert_eq!(
             String::from_utf8(body.to_vec()).unwrap(),
             "event: response\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"r1\"}}\n\n\
+event: response\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"reasoning\",\"encrypted_content\":\"opaque\"}}\n\n\
+event: response\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\",\"sequence_number\":7}\n\n\
 event: response\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r1\",\"status\":\"completed\"}}\n\n"
         );
     }
