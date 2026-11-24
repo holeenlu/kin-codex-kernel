@@ -140,3 +140,9 @@ CPR main 由 `a2c46e0dc793cf0e903f5c4fc913706ff5066875` 對齊至 `037cbcd6052fd
 本輪修正 HTTP 非串流等待 EOF、巢狀 Retry-After 解析、閒置 WebSocket Pong 背壓，以及中斷寫入失敗時遺失已到達用量；更新 cookie 0.18.3 與官方 WS 訊框日誌修正。保留 Tap 原始用量、出站身分、帳號隔離及控制面邊界。完整 256 筆來源處置、保留差異、基準與二進位雜湊見[本輪同步紀錄](docs/sync/2026-11-23-main.md)。
 
 受測程式樹為 `e37d0b9737910890e85898b2393ef4d567239286`。Rust 1.99.1 的 fmt、Clippy、161 項 workspace 測試及 cargo-deny 四類檢查通過；Linux amd64／arm64 release 均通過 glibc 2.34 檢查。以 vm2api `bbee78c8aaf0ac03c5dea801218d253af6c723d0` 的鎖版輸入與候選 amd64 二進位驗收，87 項契約通過、0 失敗，11 個占位案例略過，涵蓋 ABI 1／2。後續差異僅為已檢查文件，可將相同驗證輸入映射至交付樹。沒有改標籤、Release 或部署；下一輪兩來源增量起點即上述目標 SHA。
+
+### 2026-11-24 main 雙來源同步
+
+CPR main 起訖均為 `037cbcd6052fdb5741daf7ee8ef0f2c487319958`。官方 Codex main 由 `93f105d29b31e524facc32706993e76cad370b2f` 對齊至 `6aaf2a86b198bb0ee8f9d995e79155ad5c7f6357`，共 65 筆。Tap 採用請求的服務等級組裝 HTTP 與 WebSocket 路由提示，切換等級時使用相符的連線。兩條路徑繼續將事件序號及初步推理項目的加密欄位交給控制面。來源處置與保留差異見[本輪同步紀錄](docs/sync/2026-11-24-main.md)。
+
+受測 Git 樹為 `77f0c6a9d50dbfcce38d3f7db02eae3f9511950d`。Rust 1.99.1 的 fmt、Clippy、163 項工作區測試與供應鏈四類檢查通過。雙架構 release 的 GLIBC 最高均為 2.34。以候選 amd64 和 vm2api `c04de132d2196ab596e405bc763c47525d7651c6` 驗收，87 項契約通過、11 個占位案例略過。另以官方正式版 0.171.0 的 Linux amd64 TUI 實錄驗證兩種傳輸的 priority 路由提示。下輪從上述兩個來源目標繼續。

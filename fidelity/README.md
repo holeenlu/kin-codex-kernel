@@ -59,7 +59,9 @@ node fidelity/tools/derive-expected-tls.mjs /tmp/kc-session/tls.json /tmp/kc-ses
 
 ## 目前相容目標
 
-**原始碼進度：** 2026-11-23 已逐提交審查並在 Tap 適用範圍對齊官方 `openai/codex` main `93f105d29b31e524facc32706993e76cad370b2f`。這不是 CLI 實錄版本；明示的出站差異及逐提交處置見[main 同步紀錄](../docs/sync/2026-11-23-main.md)。
+**官方原始碼**已於 2026-11-24 逐提交審查，在 Tap 適用範圍對齊 `openai/codex` main `6aaf2a86b198bb0ee8f9d995e79155ad5c7f6357`。本輪修正服務等級的 HTTP 與 WebSocket 路由提示，並保留控制面可讀的原始事件欄位。各提交與出站差異見[本輪同步紀錄](../docs/sync/2026-11-24-main.md)。
+
+2026-11-24 使用下述官方 0.171.0 發行套件補錄服務等級。在既有 TUI 終結 TLS 錄製器寫入的臨時 `config.toml` 頂層設定 `model = "gpt-5.5"` 與 `service_tier = "priority"`，遇到模型升級提示時選用現有模型。先跑正常 WS，再以 `REC_WEBSOCKET=reject` 錄製拒絕握手後的 HTTP。兩輪都完成生成，握手與 HTTP POST 都帶 `model=gpt-5.5;tier=priority`，預熱與生成幀、本體也帶 `priority`。這次補錄的觀察及原始碼依據見[服務等級](../docs/sync/2026-11-24-main.md#服務等級)。
 
 **出站實錄相容目標：** 官方正式版 `rust-v0.171.0`（`ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`）。2026-11-22 在斷網 Debian 容器使用 npm 發行的 Linux x64 二進位，完成 TUI WebSocket、拒絕握手轉 HTTP、兩次 401 換票、搜尋、圖片生成／編輯及 exec 回合。當版基準保存契約測試使用的四份 JSON 摘要。HTTP 回應可使用 gzip 或 zstd，協商值為 `accept-encoding: zstd,gzip`。以本機新建置的 Linux amd64 Tap 執行：
 
