@@ -86,17 +86,27 @@ const WEBSOCKET_PLAN: &[Slot] = &[
 pub fn responses_http(
     envelope: &ResponsesEnvelope,
     model: Option<&str>,
+    service_tier: Option<&str>,
     turn_metadata: Option<&str>,
     credential: &Credential,
     identity: &Identity,
 ) -> Vec<(HeaderName, HeaderValue)> {
-    assemble(PLAN, envelope, model, turn_metadata, credential, identity)
+    assemble(
+        PLAN,
+        envelope,
+        model,
+        service_tier,
+        turn_metadata,
+        credential,
+        identity,
+    )
 }
 
 /// WebSocket 升級請求上由核心附加的標頭，依官方的插入順序（線上順序見模組說明）。
 pub fn responses_websocket(
     envelope: &ResponsesEnvelope,
     model: Option<&str>,
+    service_tier: Option<&str>,
     turn_metadata: Option<&str>,
     credential: &Credential,
     identity: &Identity,
@@ -105,6 +115,7 @@ pub fn responses_websocket(
         WEBSOCKET_PLAN,
         envelope,
         model,
+        service_tier,
         turn_metadata,
         credential,
         identity,
@@ -116,6 +127,7 @@ fn assemble(
     plan: &[Slot],
     envelope: &ResponsesEnvelope,
     model: Option<&str>,
+    service_tier: Option<&str>,
     turn_metadata: Option<&str>,
     credential: &Credential,
     identity: &Identity,
@@ -132,7 +144,7 @@ fn assemble(
             Slot::Conversation(name) => (name, envelope.header(name).or(conversation).map(str::to_owned)),
             Slot::RoutingHint => (
                 "x-codex-routing-hint",
-                model.map(|model| format!("model={model}")),
+                model.and_then(|model| routing_hint(model, service_tier)),
             ),
             Slot::Fixed(name, value) => (name, Some((*value).to_owned())),
             Slot::Authorization => (
@@ -155,6 +167,27 @@ fn assemble(
         }
     }
     out
+}
+
+/// 只用請求本體已選定的模型與等級組提示，不讓欄位值引入其他路由參數。
+fn routing_hint(model: &str, service_tier: Option<&str>) -> Option<String> {
+    let model = model.trim_matches(' ');
+    if model.is_empty() || model.contains([';', '=']) || model.bytes().any(|b| b.is_ascii_control()) {
+        return None;
+    }
+    let tier = service_tier
+        .map(|value| value.trim_matches(' '))
+        .filter(|value| {
+            (1..=64).contains(&value.len())
+                && value
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        })
+        .map(str::to_ascii_lowercase);
+    Some(match tier.as_deref() {
+        None | Some("auto" | "standard" | "default") => format!("model={model}"),
+        Some(tier) => format!("model={model};tier={tier}"),
+    })
 }
 
 #[cfg(test)]
@@ -198,6 +231,7 @@ mod tests {
         let headers = responses_http(
             &envelope,
             Some("gpt-6.1-sol"),
+            None,
             envelope.header("x-codex-turn-metadata"),
             &credential(),
             &identity(),
@@ -249,6 +283,7 @@ mod tests {
         let headers = responses_websocket(
             &envelope,
             Some("gpt-6.1-sol"),
+            None,
             envelope.header("x-codex-turn-metadata"),
             &credential(),
             &identity(),
@@ -284,6 +319,7 @@ mod tests {
             serde_json::from_str(r#"{"body":{},"session":{"session_id":"sess-1"},"headers":{}}"#).unwrap();
         let headers = responses_http(
             &envelope,
+            None,
             None,
             envelope.header("x-codex-turn-metadata"),
             &credential(),

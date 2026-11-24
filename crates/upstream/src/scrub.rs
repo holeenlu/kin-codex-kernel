@@ -25,6 +25,15 @@ pub struct Scrubbed {
 }
 
 pub fn installation_ids(envelope: &ResponsesEnvelope, device_id: &str) -> Scrubbed {
+    let object = Object::parse(envelope.body.get());
+    installation_ids_from_object(envelope, device_id, object.as_ref())
+}
+
+pub(super) fn installation_ids_from_object(
+    envelope: &ResponsesEnvelope,
+    device_id: &str,
+    object: Option<&Object<'_>>,
+) -> Scrubbed {
     let body = envelope.body.get();
     let header = envelope.header("x-codex-turn-metadata");
     let mut found: Vec<String> = Vec::new();
@@ -40,12 +49,9 @@ pub fn installation_ids(envelope: &ResponsesEnvelope, device_id: &str) -> Scrubb
     note(header.and_then(turn_metadata_installation).as_deref());
     note(envelope.header("x-codex-installation-id"));
     // 依原順序讀頂層成員：跳脫寫法的鍵、重複的鍵都看得到（整份本體只掃一次）。
-    let object = Object::parse(body);
-    let client_metadata = object
-        .as_ref()
-        .is_some_and(|object| object.contains("client_metadata"));
+    let client_metadata = object.is_some_and(|object| object.contains("client_metadata"));
     for metadata in object
-        .iter()
+        .into_iter()
         .flat_map(|object| object.values("client_metadata"))
         .filter_map(|raw| serde_json::from_str::<Map<String, Value>>(raw.get()).ok())
     {

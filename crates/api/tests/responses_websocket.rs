@@ -23,7 +23,7 @@ const TOKEN: &str = "test-internal-token";
 mod handshake;
 
 /// 一條連線：升級標頭（線上順序）與收到的訊息。
-type Connection = (Vec<String>, Vec<String>);
+type Connection = (axum::http::HeaderMap, Vec<String>);
 
 #[derive(Clone, Default)]
 struct Seen(Arc<Mutex<Vec<Connection>>>);
@@ -60,18 +60,13 @@ async fn start_ws_upstream(mode: Mode) -> (String, Seen) {
             tokio::spawn(async move {
                 let index = {
                     let mut all = record.0.lock().unwrap();
-                    all.push((Vec::new(), Vec::new()));
+                    all.push(Connection::default());
                     all.len() - 1
                 };
                 let headers_record = record.clone();
                 #[allow(clippy::result_large_err)]
                 let callback = move |request: &WsRequest, mut response: WsResponse| {
-                    let names = request
-                        .headers()
-                        .keys()
-                        .map(|name| name.as_str().to_owned())
-                        .collect();
-                    headers_record.0.lock().unwrap()[index].0 = names;
+                    headers_record.0.lock().unwrap()[index].0 = request.headers().clone();
                     response
                         .headers_mut()
                         .insert("x-codex-primary-used-percent", "12".parse().unwrap());
@@ -261,7 +256,7 @@ event: response\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r
         r#"{"type":"response.create","model":"gpt-5.5","input":[],"stream":true}"#
     );
     assert_eq!(
-        headers,
+        headers.keys().map(|name| name.as_str()).collect::<Vec<_>>(),
         // 官方 TUI 錄得的線上順序（缺少的是這個請求沒有的選用標頭）。
         &[
             "host",
@@ -283,6 +278,41 @@ event: response\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"r
             "sec-websocket-extensions",
         ]
     );
+}
+
+#[tokio::test]
+async fn routing_hint_keeps_each_service_tier_on_its_own_connection() {
+    let (base, seen) = start_ws_upstream(Mode::Complete).await;
+    let dir = tempfile::tempdir().unwrap();
+    let app = kernel(&base, &dir);
+    for (tier, reused) in [("priority", false), ("ultrafast", false), ("priority", true)] {
+        let mut request = envelope(true);
+        *request.body_mut() = Body::from(
+            serde_json::json!({
+                "body":{"model":"m","input":[],"service_tier":tier}, "stream":true,
+                "session":{"session_id":"same"}, "options":{"upstream_transport":"prefer_websocket"}
+            })
+            .to_string(),
+        );
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let facts: Value =
+            serde_json::from_slice(response.headers()["x-tap-turn-timing"].as_bytes()).unwrap();
+        assert_eq!(facts["ws_reused"], reused);
+        response.into_body().collect().await.unwrap();
+    }
+    let calls = seen.0.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    for ((headers, messages), (tier, count)) in calls.iter().zip([("priority", 2), ("ultrafast", 1)]) {
+        assert_eq!(headers["x-codex-routing-hint"], format!("model=m;tier={tier}"));
+        assert_eq!(messages.len(), count);
+        for message in messages {
+            assert_eq!(
+                serde_json::from_str::<Value>(message).unwrap()["service_tier"],
+                tier
+            );
+        }
+    }
 }
 
 #[tokio::test]

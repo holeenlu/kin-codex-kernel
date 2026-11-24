@@ -357,7 +357,17 @@ impl HttpUpstream {
             tracing::debug!("fallback identity in use");
         }
         // 下游的安裝 id 換成本帳號的（本體與 x-codex-turn-metadata），其餘一個位元組都不動。
-        let mut scrubbed = scrub::installation_ids(envelope, &self.device_id);
+        let (mut scrubbed, service_tier) = {
+            let fields = json_object::Object::parse(envelope.body.get());
+            let service_tier: Option<String> = fields
+                .as_ref()
+                .and_then(|fields| fields.get("service_tier"))
+                .and_then(|raw| serde_json::from_str(raw.get()).ok());
+            (
+                scrub::installation_ids_from_object(envelope, &self.device_id, fields.as_ref()),
+                service_tier,
+            )
+        };
         self.options.metadata(envelope, &self.device_id, &mut scrubbed)?;
         if scrubbed.replaced > 0 {
             tracing::debug!(
@@ -389,6 +399,7 @@ impl HttpUpstream {
             let headers = headers::responses_websocket(
                 envelope,
                 model.as_deref(),
+                service_tier.as_deref(),
                 turn_metadata,
                 credential,
                 &identity,
@@ -443,9 +454,14 @@ impl HttpUpstream {
             .map_err(|e| http_fallback_error(e, prior_send))?;
         timing.update(|f| f.http_zstd_bytes = Some(body.len()));
         let mut request = self.client.post(&self.endpoint);
-        for (name, value) in
-            headers::responses_http(envelope, model.as_deref(), turn_metadata, credential, &identity)
-        {
+        for (name, value) in headers::responses_http(
+            envelope,
+            model.as_deref(),
+            service_tier.as_deref(),
+            turn_metadata,
+            credential,
+            &identity,
+        ) {
             request = request.header(name, value);
         }
         let send = self.send_http(request.body(body), cancel);

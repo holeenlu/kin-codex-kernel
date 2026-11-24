@@ -246,6 +246,41 @@ async fn streams_the_upstream_sse_unchanged_with_the_control_plane_headers() {
 }
 
 #[tokio::test]
+async fn routing_hint_uses_the_body_tier_over_an_envelope_header() {
+    let (base, seen) = start_upstream(200).await;
+    let dir = tempfile::tempdir().unwrap();
+    let app = kernel(&base, &dir);
+    for (model, tier, expected) in [
+        ("m", json!("priority"), Some("model=m;tier=priority")),
+        ("m", json!(" FLEX "), Some("model=m;tier=flex")),
+        ("m", json!(" DEFAULT "), Some("model=m")),
+        ("m", json!("auto"), Some("model=m")),
+        ("m", json!("standard"), Some("model=m")),
+        ("m", json!("priority;other=value"), Some("model=m")),
+        ("m", json!(7), Some("model=m")),
+        ("m;tier=priority", Value::Null, None),
+    ] {
+        let body = json!({"model":model,"input":[],"service_tier":tier});
+        let mut request = envelope(false);
+        *request.body_mut() = Body::from(
+            json!({
+                "body":body, "headers":{"x-codex-routing-hint":"model=other;tier=priority"},
+                "options":{"upstream_transport":"http"}
+            })
+            .to_string(),
+        );
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let calls = seen.0.lock().unwrap();
+        let (headers, compressed) = calls.last().unwrap();
+        let hint = headers.iter().find(|(k, _)| k == "x-codex-routing-hint");
+        assert_eq!(hint.map(|(_, v)| v.as_str()), expected);
+        let sent = zstd::stream::decode_all(compressed.as_slice()).unwrap();
+        assert_eq!(serde_json::from_slice::<Value>(&sent).unwrap(), body);
+    }
+}
+
+#[tokio::test]
 async fn non_stream_requests_return_the_terminal_event() {
     let (base, _) = start_upstream(200).await;
     let dir = tempfile::tempdir().unwrap();
