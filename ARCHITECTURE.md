@@ -146,3 +146,9 @@ CPR main 由 `a2c46e0dc793cf0e903f5c4fc913706ff5066875` 對齊至 `037cbcd6052fd
 CPR main 起訖均為 `037cbcd6052fdb5741daf7ee8ef0f2c487319958`。官方 Codex main 由 `93f105d29b31e524facc32706993e76cad370b2f` 對齊至 `6aaf2a86b198bb0ee8f9d995e79155ad5c7f6357`，共 65 筆。Tap 採用請求的服務等級組裝 HTTP 與 WebSocket 路由提示，切換等級時使用相符的連線。兩條路徑繼續將事件序號及初步推理項目的加密欄位交給控制面。來源處置與保留差異見[本輪同步紀錄](docs/sync/2026-11-24-main.md)。
 
 受測 Git 樹為 `77f0c6a9d50dbfcce38d3f7db02eae3f9511950d`。Rust 1.99.1 的 fmt、Clippy、163 項工作區測試與供應鏈四類檢查通過。雙架構 release 的 GLIBC 最高均為 2.34。以候選 amd64 和 vm2api `c04de132d2196ab596e405bc763c47525d7651c6` 驗收，87 項契約通過、11 個占位案例略過。另以官方正式版 0.171.0 的 Linux amd64 TUI 實錄驗證兩種傳輸的 priority 路由提示。下輪從上述兩個來源目標繼續。
+
+### 2026-11-24 晚間 main 雙來源同步
+
+CPR main 由 `037cbcd6052fdb5741daf7ee8ef0f2c487319958` 對齊至 `21622eeacdab919013408a4b77f5536ed8888f32`，共 6 筆。官方 Codex main 由 `6aaf2a86b198bb0ee8f9d995e79155ad5c7f6357` 對齊至 `75df5098a6d92b40dc61e7a9964233ce9c359677`，共 33 筆。HTTP 推理和 WS 握手回 429 時保留上游額度標頭。HTTP 成功回應與 WS 首次接受生成時交付模型目錄 ETag，預熱後可由首輪生成讀取。兩項變更透過既有 ABI 回應標頭交付，逐提交處置見[晚間同步紀錄](docs/sync/2026-11-24-evening-main.md)。
+
+受測 Git 樹為 `49299fcbb5d73982bc1d1aa1d3c85d0932fab8bc`。Rust 1.99.1 的 fmt、Clippy、164 項工作區測試及 cargo-deny 四類檢查通過。Linux amd64／arm64 建置的最高 GLIBC 均為 2.34，候選 amd64 通過 vm2api ABI 1／2 契約 87 項，11 個占位案例略過。晚間同步延續官方正式版 0.171.0 的 Linux amd64 四份實錄基準。
