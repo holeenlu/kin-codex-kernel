@@ -2,6 +2,35 @@
 use serde_json::Value;
 use tap_contract::error::UpstreamFacts;
 
+/// 只轉送控制面可判讀的額度標頭，保留具名桶與通用視窗的原始名稱。
+pub(super) fn quota_headers<'a>(headers: impl Iterator<Item = (&'a str, &'a str)>) -> Vec<(String, String)> {
+    headers
+        .filter(|(name, _)| {
+            let Some(name) = name.strip_prefix("x-codex-") else {
+                return false;
+            };
+            matches!(
+                name,
+                "active-limit"
+                    | "rate-limit-reached-type"
+                    | "primary-over-secondary-limit-percent"
+                    | "credits-has-credits"
+                    | "credits-unlimited"
+                    | "credits-balance"
+            ) || [
+                "-used-percent",
+                "-window-minutes",
+                "-reset-at",
+                "-reset-after-seconds",
+            ]
+            .iter()
+            .filter_map(|suffix| name.strip_suffix(*suffix))
+            .any(|window| matches!(window.rsplit('-').next(), Some("primary" | "secondary")))
+        })
+        .map(|(name, value)| (name.to_owned(), value.to_owned()))
+        .collect()
+}
+
 pub(super) fn facts(
     stage: &'static str,
     status: Option<u16>,

@@ -165,7 +165,10 @@ pub struct Turn {
 enum HandshakeError {
     /// 上游回了非 101 的 HTTP 狀態。
     Rejected(u16),
-    RateLimited(Box<UpstreamFacts>),
+    RateLimited {
+        facts: Box<UpstreamFacts>,
+        headers: Vec<(String, String)>,
+    },
     Failed(String),
 }
 
@@ -472,13 +475,14 @@ impl WebsocketTransport {
                     return Ok(Ok(connected));
                 }
                 Err(HandshakeError::Rejected(426)) => return Ok(Err((426, "upgrade_required"))),
-                Err(HandshakeError::RateLimited(facts)) => {
+                Err(HandshakeError::RateLimited { facts, headers }) => {
                     timing.update(|f| {
                         f.transport = Some("websocket");
                         f.handshake_status = Some(429);
                     });
                     return Err(KernelError::WebsocketHandshakeRateLimited {
                         facts,
+                        headers,
                         sent: already_sent,
                     });
                 }
@@ -601,13 +605,21 @@ impl WebsocketTransport {
                     .filter(|body| body.len() <= crate::ERROR_BODY_LIMIT)
                     .and_then(|body| serde_json::from_slice(body).ok())
                     .unwrap_or_default();
-                Err(HandshakeError::RateLimited(crate::failure::facts(
-                    "websocket_handshake",
-                    Some(429),
-                    &fields,
-                    header("x-request-id").or_else(|| header("x-oai-request-id")),
-                    header("retry-after"),
-                )))
+                Err(HandshakeError::RateLimited {
+                    facts: crate::failure::facts(
+                        "websocket_handshake",
+                        Some(429),
+                        &fields,
+                        header("x-request-id").or_else(|| header("x-oai-request-id")),
+                        header("retry-after"),
+                    ),
+                    headers: crate::failure::quota_headers(
+                        response
+                            .headers()
+                            .iter()
+                            .filter_map(|(n, v)| Some((n.as_str(), v.to_str().ok()?))),
+                    ),
+                })
             }
             Err(tungstenite::Error::Http(response)) => {
                 Err(HandshakeError::Rejected(response.status().as_u16()))

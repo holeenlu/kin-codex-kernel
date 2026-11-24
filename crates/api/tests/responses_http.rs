@@ -54,7 +54,13 @@ async fn fake_upstream(State((seen, plan)): State<(Seen, u16)>, headers: HeaderM
     } else {
         (
             StatusCode::from_u16(plan).unwrap(),
-            [("retry-after", "7")],
+            [
+                ("retry-after", "7"),
+                ("x-codex-active-limit", "codex"),
+                ("x-codex-primary-reset-at", "1893456000"),
+                ("x-codex-turn-state", "do-not-copy-on-error"),
+                ("set-cookie", "private=1"),
+            ],
             r#"{"error":{"type":"usage_limit_reached","code":"usage_limit_reached","message":"limit"}}"#,
         )
             .into_response()
@@ -303,6 +309,10 @@ async fn an_upstream_429_keeps_the_status_text_and_retry_after() {
     let response = kernel(&base, &dir).oneshot(envelope(true)).await.unwrap();
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(response.headers()["retry-after"], "7");
+    assert_eq!(response.headers()["x-codex-active-limit"], "codex");
+    assert_eq!(response.headers()["x-codex-primary-reset-at"], "1893456000");
+    assert!(!response.headers().contains_key("x-codex-turn-state"));
+    assert!(!response.headers().contains_key("set-cookie"));
     assert_eq!(response.headers()[UPSTREAM_SENT], "1");
     let body: Value =
         serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();

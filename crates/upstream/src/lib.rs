@@ -623,6 +623,16 @@ async fn failure(
     cancel: &CancellationToken,
 ) -> KernelError {
     let status = response.status().as_u16();
+    let headers = if status == 429 {
+        failure::quota_headers(
+            response
+                .headers()
+                .iter()
+                .filter_map(|(n, v)| Some((n.as_str(), v.to_str().ok()?))),
+        )
+    } else {
+        Vec::new()
+    };
     let retry_after = header_text(response.headers(), &RETRY_AFTER);
     let id = response
         .headers()
@@ -640,6 +650,7 @@ async fn failure(
     let fields = serde_json::from_slice(&raw).unwrap_or_default();
     KernelError::Upstream(UpstreamFailure {
         status,
+        headers,
         facts: failure::facts(
             "http",
             Some(status),

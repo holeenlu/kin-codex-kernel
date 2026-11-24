@@ -78,6 +78,10 @@ async fn serve_rejections(listener: TcpListener, seen: Arc<Observed>, status: u1
                 .status(status)
                 .header("retry-after", "73")
                 .header("x-oai-request-id", "upgrade-id")
+                .header("x-codex-active-limit", "codex_luna_reserve")
+                .header("x-codex-luna-reserve-primary-window-minutes", "300")
+                .header("x-codex-luna-reserve-primary-reset-at", "1893456000")
+                .header("x-codex-turn-state", "do-not-copy-on-error")
                 .header("set-cookie", "secret=do-not-forward")
                 .body(Body::from(r#"{"error":{"type":"rate_limit_error","code":"turn_rate_limit_exceeded","message":"private upstream detail"}}"#))
                 .unwrap()
@@ -106,6 +110,16 @@ async fn explicit_opening_429_is_reported_without_http_fallback_or_replay() {
         assert_eq!(response.status(), 429);
         assert_eq!(response.headers()["x-kin-upstream-sent"], "0");
         assert_eq!(response.headers()["retry-after"], "73");
+        assert_eq!(response.headers()["x-codex-active-limit"], "codex_luna_reserve");
+        assert_eq!(
+            response.headers()["x-codex-luna-reserve-primary-window-minutes"],
+            "300"
+        );
+        assert_eq!(
+            response.headers()["x-codex-luna-reserve-primary-reset-at"],
+            "1893456000"
+        );
+        assert!(!response.headers().contains_key("x-codex-turn-state"));
         assert!(!response.headers().contains_key("set-cookie"));
         let facts: Value =
             serde_json::from_slice(response.headers()["x-tap-upstream-error"].as_bytes()).unwrap();

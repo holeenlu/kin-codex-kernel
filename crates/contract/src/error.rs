@@ -48,6 +48,7 @@ pub enum KernelError {
     #[error("upstream websocket handshake rate limited")]
     WebsocketHandshakeRateLimited {
         facts: Box<UpstreamFacts>,
+        headers: Vec<(String, String)>,
         sent: UpstreamSent,
     },
     /// 上游回非 2xx。
@@ -141,6 +142,8 @@ pub struct UpstreamFailure {
     pub status: u16,
     /// 上游回應本體原文（已截斷到合理長度）。控制面依其中的錯誤碼判斷停槽，所以不改寫。
     pub body: String,
+    /// HTTP 429 的上游原始額度標頭，交由控制面判讀。
+    pub headers: Vec<(String, String)>,
 }
 
 impl UpstreamFailure {
@@ -263,10 +266,13 @@ impl KernelError {
         self.upstream_facts()?.retry_after.as_deref()
     }
 
-    /// 錯誤回應上另外帶的標頭（WebSocket 握手時拿到的 `x-codex-*`）。
+    /// 錯誤回應上另外帶的上游標頭。
     pub fn extra_headers(&self) -> &[(String, String)] {
         match self {
-            Self::UpstreamEvent { headers, .. } => headers,
+            Self::Upstream(f) => &f.headers,
+            Self::UpstreamEvent { headers, .. } | Self::WebsocketHandshakeRateLimited { headers, .. } => {
+                headers
+            }
             _ => &[],
         }
     }
@@ -322,6 +328,7 @@ mod tests {
     fn upstream(status: u16) -> KernelError {
         KernelError::Upstream(UpstreamFailure {
             status,
+            headers: Vec::new(),
             body: r#"{"error":{"code":"x"}}"#.to_owned(),
             facts: Box::new(UpstreamFacts {
                 retry_after: Some("7".to_owned()),
