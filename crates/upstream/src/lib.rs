@@ -558,18 +558,18 @@ impl Accepted {
             AcceptedBody::Websocket(turn) => return turn.into_terminal_event().await,
         };
         let mut chunks = response;
-        let mut observer = SseObserver::default();
         let mut decoder = sse::TerminalDecoder::default();
         while let Some(chunk) = chunks.next().await {
             let chunk = chunk.map_err(|e| KernelError::UpstreamTransport {
                 message: e.to_string(),
                 sent: UpstreamSent::Yes,
             })?;
-            observer.push(&chunk, &self.timing);
-            decoder.push(&chunk).map_err(|e| KernelError::UpstreamTransport {
-                message: e.to_string(),
-                sent: UpstreamSent::Yes,
-            })?;
+            decoder
+                .push(&chunk, &self.timing)
+                .map_err(|e| KernelError::UpstreamTransport {
+                    message: e.to_string(),
+                    sent: UpstreamSent::Yes,
+                })?;
             if let Some(event) = decoder.take_terminal() {
                 return Ok(event);
             }

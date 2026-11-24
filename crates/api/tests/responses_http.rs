@@ -298,6 +298,15 @@ async fn non_stream_requests_return_the_terminal_event() {
     let response = kernel(&base, &dir).oneshot(envelope(false)).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()["x-codex-primary-used-percent"], "12");
+    let timing: Value = serde_json::from_slice(response.headers()["x-tap-turn-timing"].as_bytes()).unwrap();
+    assert_eq!(timing["transport"], "http");
+    assert_eq!(timing["first_event_type"], "response.created");
+    assert_eq!(timing["first_generated_type"], "response.output_text.delta");
+    assert_eq!(timing["first_text_type"], "response.output_text.delta");
+    assert_eq!(timing["outcome"], "response.completed");
+    let first = timing["first_event_ms"].as_u64().unwrap();
+    assert!(first <= timing["first_generated_ms"].as_u64().unwrap());
+    assert!(first <= timing["first_text_ms"].as_u64().unwrap());
     let body: Value =
         serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert_eq!(body["type"], "response.completed");

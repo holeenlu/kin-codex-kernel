@@ -231,7 +231,7 @@ pub(super) struct SseObserver {
 }
 impl SseObserver {
     pub(super) fn push(&mut self, chunk: &[u8], timing: &TurnTiming) {
-        const LIMIT: usize = 256 * 1024;
+        use crate::sse::TIMING_EVENT_LIMIT;
         for segment in chunk.split_inclusive(|&b| b == b'\n') {
             let end = segment.ends_with(b"\n");
             let piece = if end {
@@ -247,7 +247,7 @@ impl SseObserver {
                 .len()
                 .saturating_add(self.line.len())
                 .saturating_add(piece.len())
-                > LIMIT
+                > TIMING_EVENT_LIMIT
             {
                 self.skip = true;
             }
