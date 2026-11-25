@@ -160,3 +160,7 @@ CPR main 維持 `21622eeacdab919013408a4b77f5536ed8888f32`。官方 Codex main �
 ### 2026-11-25 早間 main 雙來源同步
 
 CPR main 維持 `21622eeacdab919013408a4b77f5536ed8888f32`。官方 Codex main 由 `44308610ef5cbc03d149707735878b0c8743b2df` 審查並對齊至 `b0b0852ee0a9105caa15a93e78287ef78e5f40bd`，共 27 筆，均無需移植。官方模型目錄的字串去重用於 CLI 解析後的模型物件，Tap 的 `models` 操作轉送原始回應本體。圖片和 Responses 使用的 `x-codex-turn-metadata` 線路值相同。兩種 Responses 傳輸與 Tap 的 HTTP 非串流解析均無程式變更。出站實錄沿用正式版 `rust-v0.171.0` Linux x64。逐提交處置和驗證見[早間同步紀錄](docs/sync/2026-11-25-b0b0852e-main.md)。
+
+### 2026-11-25 下午 main 雙來源同步
+
+CPR main 由 `21622eeacdab919013408a4b77f5536ed8888f32` 對齊至 `7e32ba5dc01c2d62e0317c2d169fa7de67d6658b`（3 筆）。官方 Codex main 由 `b0b0852ee0a9105caa15a93e78287ef78e5f40bd` 對齊至 `ebd0765aafa255d63ebf690ebdffe0164dc14a0c`（27 筆）。CPR 的終態後 WS 控制通知，以及官方的自訂目錄探索、工作負載身分和 Realtime 語音偏好均在 Kin 現行 ABI 範圍之外。本輪只更新來源紀錄，CLI 實錄沿用正式版 0.171.0 Linux x64。見[逐提交處置](docs/sync/2026-11-25-ebd0765a-main.md)。
