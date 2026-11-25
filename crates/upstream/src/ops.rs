@@ -17,15 +17,15 @@
 
 use bytes::Bytes;
 use futures_util::StreamExt;
+use kin_contract::config::looks_like_uuid;
+use kin_contract::error::KernelError;
+use kin_contract::send::UpstreamSent;
+use kin_credentials::Credential;
+use kin_identity::Profile;
 use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue, USER_AGENT};
 use serde::Serialize;
 use serde_json::Value;
 use serde_json::value::RawValue;
-use tap_contract::config::looks_like_uuid;
-use tap_contract::error::KernelError;
-use tap_contract::send::UpstreamSent;
-use tap_credentials::Credential;
-use tap_identity::Profile;
 use tokio_util::sync::CancellationToken;
 
 use crate::HttpUpstream;
@@ -244,7 +244,7 @@ impl HttpUpstream {
                 self.client.get(format!(
                     "{}/models?client_version={}",
                     self.base_url,
-                    tap_identity::TARGET_VERSION
+                    kin_identity::TARGET_VERSION
                 )),
                 false,
             )?),

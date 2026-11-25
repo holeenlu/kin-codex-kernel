@@ -76,7 +76,7 @@ pub struct WsReplay {
     pub previous_response_id: Option<String>,
 }
 
-/// 帳號所在機器的原始事實，不先格式化。格式化規則重現官方客戶端（`tap-identity`）。
+/// 帳號所在機器的原始事實，不先格式化。格式化規則重現官方客戶端（`kin-identity`）。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 pub struct ClientEnvironment {
     #[serde(default)]

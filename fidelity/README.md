@@ -1,6 +1,6 @@
 # 擬真基準
 
-這裡保存「線上實際長什麼樣子」的錄製結果，作為 tap-codex-kernel 逐項比對的依據。
+這裡保存「線上實際長什麼樣子」的錄製結果，作為 kin-codex-kernel 逐項比對的依據。
 這些比對資料放在本倉庫，不隨 vm2api 發布。
 
 ## 錄製方式
@@ -30,7 +30,7 @@
 docker run --rm --platform linux/amd64 --network none \
   --add-host chatgpt.com:127.0.0.1 --add-host auth.openai.com:127.0.0.1 \
   -v <vm2api>:/repo:ro -v <codex-vendor>:/codex:ro \
-  -v <tap>/fidelity/tools:/script:ro -v /tmp/kc-official:/out \
+  -v <kin>/fidelity/tools:/script:ro -v /tmp/kc-official:/out \
   node:22-bookworm-slim node /script/capture-official-cli.mjs /codex/bin/codex /out/official-fresh.json fresh
 ```
 
@@ -44,7 +44,7 @@ docker run --rm --platform linux/amd64 --network none \
 fidelity/tools/make-capture-ca.sh /tmp/capture-ca
 docker run --rm --platform linux/amd64 --network none \
   --add-host chatgpt.com:127.0.0.1 --add-host auth.openai.com:127.0.0.1 --add-host ab.chatgpt.com:127.0.0.1 \
-  -v <vm2api>:/repo:ro -v <codex-vendor>:/codex:ro -v <tap>/fidelity/tools:/rec:ro \
+  -v <vm2api>:/repo:ro -v <codex-vendor>:/codex:ro -v <kin>/fidelity/tools:/rec:ro \
   -v /tmp/capture-ca:/certs:ro -v /tmp/kc-session:/out \
   node:22-bookworm node /rec/record-official-session.mjs /codex/bin/codex /certs /out/run1.json [exec|tui]
 node fidelity/tools/summarize-sessions.mjs /tmp/kc-session/tls-sessions-<exec 或 tui>.json /tmp/kc-session/session-<exec 或 tui>.json /tmp/kc-session/run*.json
@@ -63,11 +63,11 @@ node fidelity/tools/derive-expected-tls.mjs /tmp/kc-session/tls.json /tmp/kc-ses
 
 2026-11-24 使用下述官方 0.171.0 發行套件補錄服務等級。在既有 TUI 終結 TLS 錄製器寫入的臨時 `config.toml` 頂層設定 `model = "gpt-5.5"` 與 `service_tier = "priority"`，遇到模型升級提示時選用現有模型。先跑正常 WS，再以 `REC_WEBSOCKET=reject` 錄製拒絕握手後的 HTTP。兩輪都完成生成，握手與 HTTP POST 都帶 `model=gpt-5.5;tier=priority`，預熱與生成幀、本體也帶 `priority`。這次補錄的觀察及原始碼依據見[服務等級](../docs/sync/2026-11-24-main.md#服務等級)。
 
-**出站實錄相容目標：** 官方正式版 `rust-v0.171.0`（`ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`）。2026-11-22 在斷網 Debian 容器使用 npm 發行的 Linux x64 二進位，完成 TUI WebSocket、拒絕握手轉 HTTP、兩次 401 換票、搜尋、圖片生成／編輯及 exec 回合。當版基準保存契約測試使用的四份 JSON 摘要。HTTP 回應可使用 gzip 或 zstd，協商值為 `accept-encoding: zstd,gzip`。以本機新建置的 Linux amd64 Tap 執行：
+**出站實錄相容目標：** 官方正式版 `rust-v0.171.0`（`ccf9be8cc458bd6b8336fe84d68d8893f2691a5e`）。2026-11-22 在斷網 Debian 容器使用 npm 發行的 Linux x64 二進位，完成 TUI WebSocket、拒絕握手轉 HTTP、兩次 401 換票、搜尋、圖片生成／編輯及 exec 回合。當版基準保存契約測試使用的四份 JSON 摘要。HTTP 回應可使用 gzip 或 zstd，協商值為 `accept-encoding: zstd,gzip`。以本機新建置的 Linux amd64 核心執行：
 
 ```bash
-baseline=/path/to/tap-codex-kernel/fidelity/baseline/codex-cli-0.171.0-linux-x64
-node scripts/kernel-contract.mjs --tap /path/to/tap-codex-kernel-linux-amd64 \
+baseline=/path/to/kin-codex-kernel/fidelity/baseline/codex-cli-0.171.0-linux-x64
+node scripts/kernel-contract.mjs --tap /path/to/kin-codex-kernel-linux-amd64 \
   --tls-baseline "$baseline/expected-tls.json" --identity-baseline "$baseline/expected-identity.json" \
   --refresh-baseline "$baseline/refresh.json" --ops-baseline "$baseline/ops-and-cookies.json"
 ```
@@ -91,9 +91,9 @@ node scripts/kernel-contract.mjs --tap /path/to/tap-codex-kernel-linux-amd64 \
 
 ## 決定：TLS 對齊官方 CLI（使用者 2026-11-16）
 
-tap-codex-kernel 送出的每個 ClientHello，都必須是目標官方版本在同一主機、同一傳輸方式下會送出的握手。
+kin-codex-kernel 送出的每個 ClientHello，都必須是目標官方版本在同一主機、同一傳輸方式下會送出的握手。
 
-### 對 tap-upstream 的要求
+### 對 kin-upstream 的要求
 
 - **HTTP：** 走 native-tls，靜態連結與目標版本相同的 OpenSSL（以發行二進位的版本字串為準），不送 ALPN。不得自動選用 rustls。
 - **WebSocket：** 走 rustls，明確安裝 aws-lc-rs provider，用 rustls 的預設參數（不自訂密碼套件、群組與簽章演算法），不送 ALPN；擴充順序沿用 rustls 每條連線隨機的行為。依賴圖裡若同時有 ring，provider 必須明確安裝，否則會出現上游核心那種 ring 握手。
@@ -118,7 +118,7 @@ tap-codex-kernel 送出的每個 ClientHello，都必須是目標官方版本在
 
 ### 決定：User-Agent 由核心依帳號環境組成（使用者 2026-11-16）
 
-核心照官方用戶在那台機器上會得到的結果，自己組出 User-Agent；Node 路由設定 `codex.user_agent` 的單一全域字串對 tap 不再生效。
+核心照官方用戶在那台機器上會得到的結果，自己組出 User-Agent；Node 路由設定 `codex.user_agent` 的單一全域字串對核心不再生效。
 
 - **輸入（帳號環境，請求選項 `client_environment`；共享模式改由帳號登錄提供）：**
   `{os_release: {id, version_id}, machine, term, term_program?, term_program_version?}`，都是那台機器的原始事實，不先格式化。

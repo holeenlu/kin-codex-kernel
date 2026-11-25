@@ -27,15 +27,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use tap_contract::envelope::ResponsesEnvelope;
-use tap_contract::error::KernelError;
-use tap_contract::registry::{AccountEnv, CredentialStatus};
-use tap_contract::send::UpstreamSent;
-use tap_credentials::Credential;
-use tap_credentials::stored::{self, CommitError, Refreshed, Stored};
-use tap_identity::Profile;
-use tap_upstream::refresh::{RefreshError, RefreshReason};
-use tap_upstream::{Accepted, HttpUpstream};
+use kin_contract::envelope::ResponsesEnvelope;
+use kin_contract::error::KernelError;
+use kin_contract::registry::{AccountEnv, CredentialStatus};
+use kin_contract::send::UpstreamSent;
+use kin_credentials::Credential;
+use kin_credentials::stored::{self, CommitError, Refreshed, Stored};
+use kin_identity::Profile;
+use kin_upstream::refresh::{RefreshError, RefreshReason};
+use kin_upstream::{Accepted, HttpUpstream};
 use tokio_util::sync::CancellationToken;
 
 use crate::state::{AppState, Mode, Target};
@@ -453,7 +453,7 @@ pub(crate) async fn for_request(
 ) -> Result<Credential, KernelError> {
     let Some(lease) = target.lease() else {
         // 單帳號模式：每次重讀，不自行刷新（設計第 4.6 節）。
-        return tap_credentials::load(&target.credential_path).await;
+        return kin_credentials::load(&target.credential_path).await;
     };
     // 自訂 UA 不合法時在這裡就確定不送（也不記下它）。
     let profile = lease.runtime.profile(envelope)?;
@@ -513,7 +513,7 @@ pub(crate) async fn send(
     envelope: &ResponsesEnvelope,
     credential: Credential,
     cancel: &CancellationToken,
-    timing: &tap_upstream::timing::TurnTiming,
+    timing: &kin_upstream::timing::TurnTiming,
 ) -> Result<Accepted, KernelError> {
     let first = target.upstream.send(envelope, &credential, cancel, timing).await;
     let Some(lease) = target.lease() else {
@@ -678,7 +678,7 @@ mod tests {
     #[test]
     fn the_recorded_profile_follows_the_latest_inference() {
         let auth = AccountAuth::default();
-        let environment = tap_contract::envelope::ClientEnvironment {
+        let environment = kin_contract::envelope::ClientEnvironment {
             machine: Some("x86_64".to_owned()),
             ..Default::default()
         };

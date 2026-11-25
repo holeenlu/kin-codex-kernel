@@ -13,8 +13,8 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use kin_contract::error::KernelError;
 use serde_json::{Map, Value};
-use tap_contract::error::KernelError;
 use tokio::io::AsyncWriteExt;
 
 use crate::Credential;

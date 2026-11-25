@@ -15,17 +15,17 @@ use axum::http::{Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use futures_util::stream::{self, StreamExt};
+use kin_api::{AppState, BuildInfo, router};
+use kin_contract::config::SharedConfig;
+use kin_contract::headers::{INTERNAL_TOKEN, UPSTREAM_SENT};
 use serde_json::{Value, json};
-use tap_api::{AppState, BuildInfo, router};
-use tap_contract::config::SharedConfig;
-use tap_contract::headers::{INTERNAL_TOKEN, UPSTREAM_SENT};
 use tower::ServiceExt;
 
 const TOKEN: &str = "test-internal-token";
 
 fn build() -> BuildInfo {
     BuildInfo {
-        name: "tap-codex-kernel",
+        name: "kin-codex-kernel",
         version: "0.0.0-test",
         build_sha: "test",
     }
@@ -219,7 +219,7 @@ async fn a_rate_limited_handshake_during_401_recovery_keeps_the_earlier_http_sen
     assert_eq!(response.status(), 429);
     assert_eq!(response.headers()[UPSTREAM_SENT], "1");
     let receipt: Value =
-        serde_json::from_slice(response.headers()["x-tap-upstream-error"].as_bytes()).unwrap();
+        serde_json::from_slice(response.headers()["x-kin-upstream-error"].as_bytes()).unwrap();
     assert_eq!(receipt["stage"], "websocket_handshake");
     assert!(receipt["code"].is_null() && receipt["retry_after"].is_null());
     use axum::http::Method;

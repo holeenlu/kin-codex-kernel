@@ -895,6 +895,113 @@ dependencies = [
 ]
 
 [[package]]
+name = "kin-api"
+version = "0.4.6"
+dependencies = [
+ "anyhow",
+ "axum",
+ "flate2",
+ "futures-util",
+ "http-body",
+ "http-body-util",
+ "kin-contract",
+ "kin-credentials",
+ "kin-identity",
+ "kin-registry",
+ "kin-upstream",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tower",
+ "tracing",
+ "tungstenite",
+ "zstd",
+]
+
+[[package]]
+name = "kin-codex-kernel"
+version = "0.4.6"
+dependencies = [
+ "anyhow",
+ "kin-api",
+ "kin-contract",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "kin-contract"
+version = "0.4.6"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "kin-credentials"
+version = "0.4.6"
+dependencies = [
+ "kin-contract",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "kin-identity"
+version = "0.4.6"
+dependencies = [
+ "kin-contract",
+ "sha2",
+]
+
+[[package]]
+name = "kin-registry"
+version = "0.4.6"
+dependencies = [
+ "kin-contract",
+ "serde_json",
+ "tokio-util",
+]
+
+[[package]]
+name = "kin-upstream"
+version = "0.4.6"
+dependencies = [
+ "aws-lc-rs",
+ "bytes",
+ "futures-util",
+ "kin-contract",
+ "kin-credentials",
+ "kin-identity",
+ "native-tls",
+ "openssl",
+ "openssl-sys",
+ "reqwest",
+ "rustls",
+ "rustls-native-certs",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "tokio-socks",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tracing",
+ "tungstenite",
+ "zstd",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1578,113 +1685,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.10",
-]
-
-[[package]]
-name = "tap-api"
-version = "0.4.6"
-dependencies = [
- "anyhow",
- "axum",
- "flate2",
- "futures-util",
- "http-body",
- "http-body-util",
- "serde",
- "serde_json",
- "tap-contract",
- "tap-credentials",
- "tap-identity",
- "tap-registry",
- "tap-upstream",
- "tempfile",
- "tokio",
- "tokio-tungstenite",
- "tokio-util",
- "tower",
- "tracing",
- "tungstenite",
- "zstd",
-]
-
-[[package]]
-name = "tap-codex-kernel"
-version = "0.4.6"
-dependencies = [
- "anyhow",
- "tap-api",
- "tap-contract",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "tap-contract"
-version = "0.4.6"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "tap-credentials"
-version = "0.4.6"
-dependencies = [
- "serde",
- "serde_json",
- "tap-contract",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "tap-identity"
-version = "0.4.6"
-dependencies = [
- "sha2",
- "tap-contract",
-]
-
-[[package]]
-name = "tap-registry"
-version = "0.4.6"
-dependencies = [
- "serde_json",
- "tap-contract",
- "tokio-util",
-]
-
-[[package]]
-name = "tap-upstream"
-version = "0.4.6"
-dependencies = [
- "aws-lc-rs",
- "bytes",
- "futures-util",
- "native-tls",
- "openssl",
- "openssl-sys",
- "reqwest",
- "rustls",
- "rustls-native-certs",
- "serde",
- "serde_json",
- "sha2",
- "tap-contract",
- "tap-credentials",
- "tap-identity",
- "thiserror 2.0.21",
- "tokio",
- "tokio-rustls",
- "tokio-socks",
- "tokio-tungstenite",
- "tokio-util",
- "tracing",
- "tungstenite",
- "zstd",
 ]
 
 [[package]]

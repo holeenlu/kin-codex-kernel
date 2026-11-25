@@ -14,7 +14,7 @@
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use tap_contract::registry::BreakerState;
+use kin_contract::registry::BreakerState;
 
 /// 連續幾次失敗就斷開。
 pub const THRESHOLD: u32 = 3;

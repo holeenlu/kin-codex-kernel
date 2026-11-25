@@ -1,6 +1,6 @@
 //! 共享模式（ABI 2）的帳號登錄（vm2api `docs/CODEX_SHARED_KERNEL_DESIGN.md` 第 4.3 節、本倉庫 `docs/ABI2.md`）。
 //!
-//! - 每個帳號一份執行環境 `R`（正式程式是 `tap_upstream::HttpUpstream`），以 `Arc` 交給請求：
+//! - 每個帳號一份執行環境 `R`（正式程式是 `kin_upstream::HttpUpstream`），以 `Arc` 交給請求：
 //!   環境更新時新請求拿到新的，在途請求用完舊的才回收，不會被中斷。
 //! - 每個帳號一個 [`Gate`]，跨環境更新共用：並發上限、在途數、強制取消與最近錯誤都記在這裡。
 //! - 刪除留下帶代次的墓碑，晚到的舊命令不會刪掉或蓋掉新登錄。
@@ -13,10 +13,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockWriteGuard, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tap_contract::config::DEFAULT_MAX_REQUEST_BYTES;
-use tap_contract::envelope::AccountBinding;
-use tap_contract::error::KernelError;
-use tap_contract::registry::{
+use kin_contract::config::DEFAULT_MAX_REQUEST_BYTES;
+use kin_contract::envelope::AccountBinding;
+use kin_contract::error::KernelError;
+use kin_contract::registry::{
     AccountCounts, AccountEnv, AccountList, AccountState, AccountSummary, DeleteAck, LastError, ReconcileAck,
     RegistryState, valid_account_ref,
 };

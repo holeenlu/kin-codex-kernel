@@ -1,5 +1,5 @@
 [package]
-name = "tap-registry"
+name = "kin-registry"
 description = "共享模式（ABI 2）的帳號登錄：代次 CAS、墓碑、對帳與每帳號的並發閘門"
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ publish.workspace = true
 license-file.workspace = true
 
 [dependencies]
-tap-contract.workspace = true
+kin-contract.workspace = true
 tokio-util.workspace = true
 
 [dev-dependencies]

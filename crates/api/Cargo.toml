@@ -1,6 +1,6 @@
 [package]
-name = "tap-api"
-description = "tap-codex-kernel 的內部 HTTP API：驗證、路由、錯誤對應與 Unix socket"
+name = "kin-api"
+description = "kin-codex-kernel 的內部 HTTP API：驗證、路由、錯誤對應與 Unix socket"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,11 +8,11 @@ publish.workspace = true
 license-file.workspace = true
 
 [dependencies]
-tap-contract.workspace = true
-tap-credentials.workspace = true
-tap-identity.workspace = true
-tap-registry.workspace = true
-tap-upstream.workspace = true
+kin-contract.workspace = true
+kin-credentials.workspace = true
+kin-identity.workspace = true
+kin-registry.workspace = true
+kin-upstream.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 futures-util.workspace = true

@@ -9,10 +9,10 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
+use kin_api::{AppState, BuildInfo, router};
+use kin_contract::config::SingleAccountConfig;
+use kin_contract::headers::INTERNAL_TOKEN;
 use serde_json::Value;
-use tap_api::{AppState, BuildInfo, router};
-use tap_contract::config::SingleAccountConfig;
-use tap_contract::headers::INTERNAL_TOKEN;
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::handshake::server::{Request as WsRequest, Response as WsResponse};
@@ -193,7 +193,7 @@ fn kernel(base: &str, dir: &tempfile::TempDir) -> axum::Router {
     });
     let config = SingleAccountConfig::from_slice(&serde_json::to_vec(&raw).unwrap()).unwrap();
     let build = BuildInfo {
-        name: "tap-codex-kernel",
+        name: "kin-codex-kernel",
         version: "0.0.0-test",
         build_sha: "test",
     };
@@ -392,7 +392,7 @@ async fn opening_headers_and_live_metadata_belong_only_to_their_turn() {
         }
         if round == 4 {
             assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-            let facts: Value = serde_json::from_slice(headers["x-tap-upstream-error"].as_bytes()).unwrap();
+            let facts: Value = serde_json::from_slice(headers["x-kin-upstream-error"].as_bytes()).unwrap();
             assert_eq!(facts["stage"], "websocket_first_event");
             assert_eq!(facts["code"], "usage_limit_reached");
         } else {
@@ -432,7 +432,7 @@ async fn a_first_invalid_request_preserves_the_upstream_detail_but_not_transport
         assert_eq!(response.status().as_u16(), status.unwrap_or(400));
         assert_eq!(response.headers()["x-kin-upstream-sent"], "1");
         let facts: Value =
-            serde_json::from_slice(response.headers()["x-tap-upstream-error"].as_bytes()).unwrap();
+            serde_json::from_slice(response.headers()["x-kin-upstream-error"].as_bytes()).unwrap();
         assert_eq!(facts["status"], serde_json::json!(status));
         let body: Value =
             serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();

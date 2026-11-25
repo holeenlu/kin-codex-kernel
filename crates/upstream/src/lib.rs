@@ -1,7 +1,7 @@
 //! 出站 Responses。一個 [`HttpUpstream`] 就是一個帳號的上游執行環境：HTTP client、WebSocket 連線池、
 //! 出口代理與安裝身分都屬於它，帳號之間不共用任何可變狀態。單帳號模式整個程序一份，共享模式每個帳號一份。
 //!
-//! 一次請求的流程：依帳號環境組身分（`tap-identity`）→ 依傳輸方式選路：
+//! 一次請求的流程：依帳號環境組身分（`kin-identity`）→ 依傳輸方式選路：
 //! - `prefer_websocket`：[`websocket`]，握手失敗兩次或上游要求升級時改走 HTTP；
 //! - `http`：依官方順序組標頭（[`headers`]），原樣保留請求本體並以 zstd（等級 3，與官方相同）壓縮，
 //!   經 native-tls 送出，依上游核心的對應把非 2xx 轉成 [`KernelError`]。
@@ -34,14 +34,14 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
+use kin_contract::config::{SharedConfig, SingleAccountConfig, UpstreamTransport};
+use kin_contract::envelope::ResponsesEnvelope;
+use kin_contract::error::{KernelError, UpstreamFailure};
+use kin_contract::registry::AccountEnv;
+use kin_contract::send::UpstreamSent;
+use kin_credentials::Credential;
+use kin_identity::IdentitySource;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, RETRY_AFTER};
-use tap_contract::config::{SharedConfig, SingleAccountConfig, UpstreamTransport};
-use tap_contract::envelope::ResponsesEnvelope;
-use tap_contract::error::{KernelError, UpstreamFailure};
-use tap_contract::registry::AccountEnv;
-use tap_contract::send::UpstreamSent;
-use tap_credentials::Credential;
-use tap_identity::IdentitySource;
 use timing::{SseObserver, TurnTiming};
 use tokio_util::sync::CancellationToken;
 
@@ -58,7 +58,7 @@ const PROXY_PROBE_TTL: Duration = Duration::from_secs(30);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpstreamSettings {
     options: options::Defaults,
-    pub ws_limits: tap_contract::config::WsLimits,
+    pub ws_limits: kin_contract::config::WsLimits,
     /// 這個帳號的安裝身分：退回身分的挑選、下游安裝 id 的改寫目標。
     pub device_id: String,
     /// 空字串表示直連。
@@ -87,7 +87,7 @@ impl UpstreamSettings {
             proxy_url: config.proxy_url.trim().to_owned(),
             base_url: config.chatgpt_base_url().to_owned(),
             default_transport: config.upstream_transport,
-            token_url: tap_contract::config::OAUTH_TOKEN_URL.to_owned(),
+            token_url: kin_contract::config::OAUTH_TOKEN_URL.to_owned(),
             test_endpoints: config.test_endpoints,
             account_ref: config.vm_id.clone(),
             breaker_cooldown: None,
@@ -284,12 +284,12 @@ impl HttpUpstream {
     pub fn breakers(
         &self,
     ) -> (
-        tap_contract::registry::BreakerState,
-        tap_contract::registry::BreakerState,
+        kin_contract::registry::BreakerState,
+        kin_contract::registry::BreakerState,
     ) {
         let state = |breaker: Option<&breaker::Breaker>| {
             breaker.map_or(
-                tap_contract::registry::BreakerState::Closed,
+                kin_contract::registry::BreakerState::Closed,
                 breaker::Breaker::state,
             )
         };
@@ -303,7 +303,7 @@ impl HttpUpstream {
     pub fn exit_down(&self) -> bool {
         self.http_breaker
             .as_ref()
-            .is_some_and(|breaker| breaker.state() == tap_contract::registry::BreakerState::Open)
+            .is_some_and(|breaker| breaker.state() == kin_contract::registry::BreakerState::Open)
     }
 
     /// 這個執行環境的安裝身分（共享模式拿來與請求比對）。
@@ -313,7 +313,7 @@ impl HttpUpstream {
 
     /// 這次推理請求的身分輸入（帳號環境與自訂 UA，含設定檔的預設）。共享模式記下它，
     /// 帳號操作與換票才用與推理相同的身分。請求的 `user_agent` 不能放進標頭時回 `invalid_request`。
-    pub fn profile(&self, envelope: &ResponsesEnvelope) -> Result<tap_identity::Profile, KernelError> {
+    pub fn profile(&self, envelope: &ResponsesEnvelope) -> Result<kin_identity::Profile, KernelError> {
         self.options.profile(envelope)
     }
 

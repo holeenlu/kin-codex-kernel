@@ -207,7 +207,7 @@ fn requests_must_carry_the_registered_generation_and_an_enabled_account() {
     let registry = ready(vec![env("a", 3, 0), with(env("b", 1, 0), |e| e.enabled = false)]);
     let err = registry.lease(&binding("a", 2)).unwrap_err();
     assert_eq!(err.code(), "account_generation_mismatch");
-    assert_eq!(err.upstream_sent(), tap_contract::send::UpstreamSent::No);
+    assert_eq!(err.upstream_sent(), kin_contract::send::UpstreamSent::No);
     assert_eq!(code(registry.lease(&binding("b", 1))), "account_disabled");
     assert_eq!(code(registry.lease(&binding("c", 1))), "account_unknown");
     assert_eq!(
@@ -247,7 +247,7 @@ fn updates_keep_the_runtime_unless_the_exit_or_identity_changes() {
     assert_eq!(before.runtime.proxy, "");
 
     // 執行環境帶著分析事件的預設 telemetry_runtime：改了就重建，不沿用舊值。
-    let runtime = tap_contract::config::TelemetryRuntime {
+    let runtime = kin_contract::config::TelemetryRuntime {
         runtime_os: "linux".to_owned(),
         runtime_os_version: "24.04".to_owned(),
         runtime_arch: "x86_64".to_owned(),

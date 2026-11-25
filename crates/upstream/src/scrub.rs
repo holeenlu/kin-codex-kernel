@@ -7,9 +7,9 @@
 //! 作法是位元組層級的字串替換：先從已知位置找出下游 id（必須像官方的 UUID），
 //! 再把本體與標頭中所有該 id 換掉。UUID 等長，所以替換後長度不變。
 
+use kin_contract::config::looks_like_uuid;
+use kin_contract::envelope::ResponsesEnvelope;
 use serde_json::{Map, Value};
-use tap_contract::config::looks_like_uuid;
-use tap_contract::envelope::ResponsesEnvelope;
 
 use crate::json_object::Object;
 

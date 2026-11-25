@@ -145,11 +145,11 @@ fn build_record(flags: &BTreeMap<String, String>) -> anyhow::Result<()> {
     let dirty = !command_output("git", &["status", "--porcelain"])?.is_empty();
     let glibc = max_glibc(&bytes).map(|(major, minor)| format!("{major}.{minor}"));
     let record = json!({
-        "component": "tap-codex-kernel",
+        "component": "kin-codex-kernel",
         "version": env!("CARGO_PKG_VERSION"),
         "source": {
-            "visibility": std::env::var("TAP_SOURCE_VISIBILITY").ok(),
-            "repository": "holeenlu/tap-codex-kernel",
+            "visibility": std::env::var("KIN_SOURCE_VISIBILITY").ok(),
+            "repository": "holeenlu/kin-codex-kernel",
             "commit": command_output("git", &["rev-parse", "HEAD"])?,
             "tree": command_output("git", &["rev-parse", "HEAD^{tree}"])?,
             "working_tree_changes_included": dirty,
@@ -167,7 +167,7 @@ fn build_record(flags: &BTreeMap<String, String>) -> anyhow::Result<()> {
             "source_paths_remapped": true,
         },
         "artifact": {
-            "name": binary.file_name().and_then(|n| n.to_str()).unwrap_or("tap-codex-kernel"),
+            "name": binary.file_name().and_then(|n| n.to_str()).unwrap_or("kin-codex-kernel"),
             "size": bytes.len(),
             "sha256": sha256_hex(&bytes),
             "max_required_glibc": glibc,

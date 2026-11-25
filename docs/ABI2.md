@@ -4,8 +4,8 @@
 
 ## 啟動與宣告
 
-- 啟動：`tap-codex-kernel --shared <shared.json>`。程序層設定只有 `socket_path`、`internal_token`、`max_accounts`（預設 1024）與測試端點；internal token 與單帳號模式一樣直接寫在設定檔（0600），不另設 token 檔；帳號由下列 API 登錄，不寫在設定檔。單帳號模式（ABI 1）`tap-codex-kernel <config.json>` 照舊。
-- `GET /internal/v1/describe`：`abi: 2`，`kernel: "tap-codex-kernel"`，`capabilities` 含 `multi_account`、`account_ops` 與 `analytics`，另有 Responses／WS／取消與續接能力。控制面須同時核對 health 的 provider 與 describe 的 kernel。
+- 啟動：`kin-codex-kernel --shared <shared.json>`。程序層設定只有 `socket_path`、`internal_token`、`max_accounts`（預設 1024）與測試端點；internal token 與單帳號模式一樣直接寫在設定檔（0600），不另設 token 檔；帳號由下列 API 登錄，不寫在設定檔。單帳號模式（ABI 1）`kin-codex-kernel <config.json>` 照舊。
+- `GET /internal/v1/describe`：`abi: 2`，`kernel: "kin-codex-kernel"`，`capabilities` 含 `multi_account`、`account_ops` 與 `analytics`，另有 Responses／WS／取消與續接能力。控制面須同時核對 health 的 provider 與 describe 的 kernel。
 - 認證、socket 權限、`x-kin-upstream-sent` 與錯誤本體格式都與 ABI 1 相同。
 
 ## 端點

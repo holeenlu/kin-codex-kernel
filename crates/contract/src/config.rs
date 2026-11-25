@@ -147,7 +147,7 @@ pub enum ConfigError {
     ProxyRequired,
 }
 
-/// 共享模式（ABI 2）的程序層設定：`tap-codex-kernel --shared <shared.json>`。
+/// 共享模式（ABI 2）的程序層設定：`kin-codex-kernel --shared <shared.json>`。
 ///
 /// 只有程序本身的東西；帳號一律由控制面經 `/internal/v1/accounts` 登錄，不寫在這裡。
 #[derive(Debug, Clone, Deserialize)]

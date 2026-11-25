@@ -8,8 +8,8 @@
 //! - 只接受實測過的發行版與 `x86_64`（TLS 基準是官方 linux-x64 發行版）；其他情況改用退回身分，
 //!   依 `device_id` 從內建的 Linux 設定表穩定挑一組，同一帳號每次都相同。
 
+use kin_contract::envelope::{ClientEnvironment, OsRelease};
 use sha2::{Digest, Sha256};
-use tap_contract::envelope::{ClientEnvironment, OsRelease};
 
 /// 對齊的官方版本。換版時與 TLS 基準、`version` 標頭一起更新。
 pub const TARGET_VERSION: &str = "0.171.0";

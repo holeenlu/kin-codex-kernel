@@ -1,7 +1,7 @@
 //! JSON 物件的位元組級編修：只動指定的頂層成員，其餘位元組（鍵順序、空白、跳脫寫法、數值字面值）原樣保留。
 //!
 //! 請求本體與 `x-codex-turn-metadata` 的欄位順序是下游客戶端的原樣，重新序列化本身就是可辨識的差異
-//! （見 `tap_contract::envelope`），所以這裡不經過 `serde_json::Value` 或 `BTreeMap`。
+//! （見 `kin_contract::envelope`），所以這裡不經過 `serde_json::Value` 或 `BTreeMap`。
 //! 鍵以解碼後的名稱比對，`"client_metadata"` 這類跳脫寫法也認得；同名鍵重複時每一個都處理。
 
 use std::fmt;

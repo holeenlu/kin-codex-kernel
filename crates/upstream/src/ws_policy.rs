@@ -1,6 +1,6 @@
 //! 只有能獨立送往 HTTP 的完整請求可在首次寫入前降級。
+use kin_contract::{error::KernelError, send::UpstreamSent};
 use serde::Deserialize;
-use tap_contract::{error::KernelError, send::UpstreamSent};
 
 pub(super) struct Policy {
     pub(super) model: Option<String>,

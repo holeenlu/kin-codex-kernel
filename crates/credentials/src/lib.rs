@@ -11,8 +11,8 @@ pub mod stored;
 use std::fmt;
 use std::path::Path;
 
+use kin_contract::error::KernelError;
 use serde::Deserialize;
-use tap_contract::error::KernelError;
 
 /// 送上游需要的憑據。`Debug` 不輸出 token。
 #[derive(Clone)]

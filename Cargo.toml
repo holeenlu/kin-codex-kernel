@@ -26,16 +26,16 @@ edition = "2024"
 rust-version = "1.99"
 publish = false
 license-file = "LICENSE"
-repository = "https://github.com/holeenlu/tap-codex-kernel"
+repository = "https://github.com/holeenlu/kin-codex-kernel"
 
 # 所有第三方相依的版本集中在這裡，各 crate 以 `workspace = true` 引用。
 [workspace.dependencies]
-tap-contract = { path = "crates/contract" }
-tap-identity = { path = "crates/identity" }
-tap-credentials = { path = "crates/credentials" }
-tap-upstream = { path = "crates/upstream" }
-tap-registry = { path = "crates/registry" }
-tap-api = { path = "crates/api" }
+kin-contract = { path = "crates/contract" }
+kin-identity = { path = "crates/identity" }
+kin-credentials = { path = "crates/credentials" }
+kin-upstream = { path = "crates/upstream" }
+kin-registry = { path = "crates/registry" }
+kin-api = { path = "crates/api" }
 
 anyhow = "1"
 bytes = "1"
@@ -74,7 +74,7 @@ tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev 
 rustls = { version = "=0.23.46", default-features = false, features = ["aws_lc_rs", "logging", "prefer-post-quantum", "std", "tls12"] }
 rustls-native-certs = "=0.8.3"
 # rustls 的 provider 與 tokio-rustls 也釘在官方版本：provider 決定群組與簽章演算法。
-# 保留原加密提供者與 alloc，只停用 Tap 和 rustls 未使用的 ring 相容介面。
+# 保留原加密提供者與 alloc，只停用核心和 rustls 未使用的 ring 相容介面。
 aws-lc-rs = { version = "=1.18.1", default-features = false, features = ["aws-lc-sys", "alloc"] }
 tokio-rustls = { version = "=0.26.4", default-features = false }
 tokio-socks = "0.5"

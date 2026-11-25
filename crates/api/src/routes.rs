@@ -11,15 +11,15 @@ use axum::{Json, Router, middleware};
 use futures_util::{StreamExt, stream};
 use http_body::Frame;
 use http_body_util::StreamBody;
+use kin_contract::abi::{Abi, Capability};
+use kin_contract::envelope::ResponsesEnvelope;
+use kin_contract::error::KernelError;
+use kin_contract::headers::TURN_TIMING;
+use kin_contract::registry::SharedHealth;
+use kin_contract::status::{Describe, Health, Impersonate};
+use kin_upstream::timing::TurnTiming;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tap_contract::abi::{Abi, Capability};
-use tap_contract::envelope::ResponsesEnvelope;
-use tap_contract::error::KernelError;
-use tap_contract::headers::TURN_TIMING;
-use tap_contract::registry::SharedHealth;
-use tap_contract::status::{Describe, Health, Impersonate};
-use tap_upstream::timing::TurnTiming;
 use tokio_util::sync::CancellationToken;
 
 use crate::accounts;
@@ -61,7 +61,7 @@ async fn health(State(state): State<AppState>) -> Response {
             abi: Abi::SingleAccount,
             vm_id: config.vm_id.clone(),
             device_id: config.device_id.clone(),
-            accounts: tap_credentials::account_count(&config.credential_path).await,
+            accounts: kin_credentials::account_count(&config.credential_path).await,
             reachable: true,
             proxy_ok: Some(upstream.proxy_ok().await),
         })
@@ -102,8 +102,8 @@ async fn describe(State(state): State<AppState>) -> Json<Describe> {
             (Abi::Shared, None)
         }
     };
-    // 與出站請求同一個規則（`tap_identity::resolve`）：自訂 UA 帶出的 originator 與版本。
-    let (originator, version) = tap_identity::advertised(user_agent);
+    // 與出站請求同一個規則（`kin_identity::resolve`）：自訂 UA 帶出的 originator 與版本。
+    let (originator, version) = kin_identity::advertised(user_agent);
     Json(Describe {
         abi,
         kernel: build.name,

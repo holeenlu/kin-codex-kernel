@@ -122,7 +122,7 @@ async fn explicit_opening_429_is_reported_without_http_fallback_or_replay() {
         assert!(!response.headers().contains_key("x-codex-turn-state"));
         assert!(!response.headers().contains_key("set-cookie"));
         let facts: Value =
-            serde_json::from_slice(response.headers()["x-tap-upstream-error"].as_bytes()).unwrap();
+            serde_json::from_slice(response.headers()["x-kin-upstream-error"].as_bytes()).unwrap();
         assert_eq!(
             facts,
             json!({"stage":"websocket_handshake","status":429,"request_id":"upgrade-id","retry_after":"73","code":"turn_rate_limit_exceeded","type":"rate_limit_error"})
@@ -161,7 +161,7 @@ async fn other_handshake_statuses_keep_the_full_http_fallback_and_its_401() {
         let response = kernel(&base, &dir).oneshot(envelope(false)).await.unwrap();
         assert_eq!(response.status(), 401);
         let facts: Value =
-            serde_json::from_slice(response.headers()["x-tap-upstream-error"].as_bytes()).unwrap();
+            serde_json::from_slice(response.headers()["x-kin-upstream-error"].as_bytes()).unwrap();
         assert_eq!(facts["stage"], "http");
         let mut expected = initial_methods;
         expected.push(Method::POST);

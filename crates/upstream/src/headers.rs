@@ -17,12 +17,12 @@
 //! x-codex-turn-metadata, x-codex-routing-hint`。
 //! `x-openai-internal-codex-responses-lite` 與 `x-codex-turn-state` 官方在 WebSocket 握手不送。
 
+use kin_contract::envelope::ResponsesEnvelope;
+use kin_credentials::Credential;
 use reqwest::header::{HeaderName, HeaderValue};
-use tap_contract::envelope::ResponsesEnvelope;
-use tap_credentials::Credential;
 
 pub(super) const MODELS_ETAG: &str = "x-models-etag";
-use tap_identity::Identity;
+use kin_identity::Identity;
 
 /// 一個出站標頭的來源。
 enum Slot {
@@ -195,8 +195,8 @@ fn routing_hint(model: &str, service_tier: Option<&str>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tap_contract::envelope::ResponsesEnvelope;
-    use tap_identity::{IdentitySource, ORIGINATOR, TARGET_VERSION};
+    use kin_contract::envelope::ResponsesEnvelope;
+    use kin_identity::{IdentitySource, ORIGINATOR, TARGET_VERSION};
 
     fn identity() -> Identity {
         Identity {

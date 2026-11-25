@@ -4,8 +4,8 @@ use axum::Json;
 use axum::http::header::RETRY_AFTER;
 use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use tap_contract::error::KernelError;
-use tap_contract::headers::UPSTREAM_SENT;
+use kin_contract::error::KernelError;
+use kin_contract::headers::UPSTREAM_SENT;
 
 /// 處理程式回傳的錯誤。包一層是因為 orphan rule：不能直接替外部型別實作外部 trait。
 #[derive(Debug)]
@@ -37,7 +37,7 @@ impl IntoResponse for ApiError {
             && let Ok(raw) = serde_json::to_string(facts)
             && let Ok(header) = HeaderValue::from_str(&raw)
         {
-            headers.insert("x-tap-upstream-error", header);
+            headers.insert("x-kin-upstream-error", header);
         }
         for (name, value) in self.0.extra_headers() {
             if let (Ok(name), Ok(value)) = (

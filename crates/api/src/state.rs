@@ -3,11 +3,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use tap_contract::config::{SharedConfig, SingleAccountConfig};
-use tap_contract::envelope::ResponsesEnvelope;
-use tap_contract::error::KernelError;
-use tap_registry::{Lease, Registry};
-use tap_upstream::{HttpUpstream, UpstreamSettings};
+use kin_contract::config::{SharedConfig, SingleAccountConfig};
+use kin_contract::envelope::ResponsesEnvelope;
+use kin_contract::error::KernelError;
+use kin_registry::{Lease, Registry};
+use kin_upstream::{HttpUpstream, UpstreamSettings};
 
 use crate::credential::AccountAuth;
 use tokio_util::sync::CancellationToken;
@@ -54,7 +54,7 @@ struct Inner {
 struct Entry {
     seq: u64,
     token: CancellationToken,
-    interrupt: Option<tap_upstream::interrupt::InterruptHandle>,
+    interrupt: Option<kin_upstream::interrupt::InterruptHandle>,
 }
 
 /// 一次推理請求要用的帳號。共享模式持有並發名額，隨請求結束歸還。
@@ -222,7 +222,7 @@ impl AppState {
         }
     }
 
-    pub(crate) fn interrupt(&self, id: &str) -> Option<tap_upstream::interrupt::InterruptHandle> {
+    pub(crate) fn interrupt(&self, id: &str) -> Option<kin_upstream::interrupt::InterruptHandle> {
         self.inner.inflight.lock().ok()?.get(id)?.interrupt.clone()
     }
 
@@ -254,7 +254,7 @@ pub(crate) struct Inflight {
 }
 
 impl Inflight {
-    pub(crate) fn bind(&self, handle: tap_upstream::interrupt::InterruptHandle) -> bool {
+    pub(crate) fn bind(&self, handle: kin_upstream::interrupt::InterruptHandle) -> bool {
         if let Some(id) = &self.id
             && let Ok(mut map) = self.state.inner.inflight.lock()
             && let Some(entry) = map.get_mut(id)

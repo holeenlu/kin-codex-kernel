@@ -1,4 +1,4 @@
-//! tap-codex-kernel 執行檔。
+//! kin-codex-kernel 執行檔。
 //!
 //! 這裡只做組裝：解析命令列、讀設定檔、初始化日誌與執行環境、把訊號轉成關閉訊號，
 //! 再把設定與建置資訊注入 API 層。業務邏輯一律不放在這裡。
@@ -7,15 +7,15 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::Context;
-use tap_api::{AppState, BuildInfo};
-use tap_contract::config::{SharedConfig, SingleAccountConfig};
+use kin_api::{AppState, BuildInfo};
+use kin_contract::config::{SharedConfig, SingleAccountConfig};
 use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
 
 const BUILD: BuildInfo = BuildInfo {
-    name: "tap-codex-kernel",
+    name: env!("CARGO_PKG_NAME"),
     version: env!("CARGO_PKG_VERSION"),
-    build_sha: match option_env!("TAP_BUILD_SHA") {
+    build_sha: match option_env!("KIN_BUILD_SHA") {
         Some(sha) => sha,
         None => "dev",
     },
@@ -92,14 +92,19 @@ fn shared(raw: &[u8]) -> anyhow::Result<AppState> {
 }
 
 /// 日誌只寫 stderr（控制面把它導到每槽日誌檔），不記 token、cookie 或請求內容。
-/// `TAP_LOG` 控制層級，`TAP_LOG_FORMAT=json` 輸出結構化日誌。
+/// `KIN_LOG` 控制層級，`KIN_LOG_FORMAT=json` 輸出結構化日誌。
 fn init_tracing() {
-    let filter = EnvFilter::try_from_env("TAP_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_env("KIN_LOG")
+        .or_else(|_| EnvFilter::try_from_env("TAP_LOG"))
+        .unwrap_or_else(|_| EnvFilter::new("info"));
     let builder = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)
         .with_ansi(false);
-    if std::env::var("TAP_LOG_FORMAT").is_ok_and(|format| format == "json") {
+    if std::env::var("KIN_LOG_FORMAT")
+        .or_else(|_| std::env::var("TAP_LOG_FORMAT"))
+        .is_ok_and(|format| format == "json")
+    {
         builder.json().init();
     } else {
         builder.init();
@@ -118,7 +123,7 @@ fn run(path: &Path, state: fn(&[u8]) -> anyhow::Result<AppState>) -> anyhow::Res
         let state = state(&raw).with_context(|| format!("load config {}", path.display()))?;
         let shutdown = CancellationToken::new();
         tokio::spawn(forward_signals(shutdown.clone()));
-        tap_api::serve(state, shutdown).await
+        kin_api::serve(state, shutdown).await
     })
 }
 

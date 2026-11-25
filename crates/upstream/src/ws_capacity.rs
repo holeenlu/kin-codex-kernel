@@ -1,8 +1,8 @@
 //! 多個帳號只共用代理的實體名額；socket、cookie 與續接內容永不共用。
+use kin_contract::config::WsLimits;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex, Weak};
-use tap_contract::config::WsLimits;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 #[derive(Debug)]

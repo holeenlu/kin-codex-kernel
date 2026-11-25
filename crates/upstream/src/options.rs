@@ -6,16 +6,16 @@ use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use kin_contract::config::{
+    SingleAccountConfig, TelemetryRuntime, UserAgentChoice, looks_like_uuid, valid_user_agent,
+};
+use kin_contract::envelope::ResponsesEnvelope;
+use kin_contract::error::KernelError;
+use kin_credentials::Credential;
+use kin_identity::{Identity, Profile};
 use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderValue, USER_AGENT};
 use serde::Serialize;
 use serde_json::value::RawValue;
-use tap_contract::config::{
-    SingleAccountConfig, TelemetryRuntime, UserAgentChoice, looks_like_uuid, valid_user_agent,
-};
-use tap_contract::envelope::ResponsesEnvelope;
-use tap_contract::error::KernelError;
-use tap_credentials::Credential;
-use tap_identity::{Identity, Profile};
 use tokio::sync::Semaphore;
 
 use crate::breaker::{Breaker, Ticket};
@@ -517,7 +517,7 @@ mod tests {
         }
         for auto in ["auto", "AUTO", " Auto "] {
             let id = identity(serde_json::json!({ "user_agent": auto })).unwrap();
-            assert_eq!(id, tap_identity::compose(None, DEVICE), "{auto}");
+            assert_eq!(id, kin_identity::compose(None, DEVICE), "{auto}");
         }
         let id = identity(serde_json::json!({"user_agent": "project/2 (x)"})).unwrap();
         assert_eq!(
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn the_thread_initialized_event_matches_the_official_shape() {
-        let identity = tap_identity::compose(None, DEVICE);
+        let identity = kin_identity::compose(None, DEVICE);
         let runtime = TelemetryRuntime {
             runtime_os: "linux".into(),
             runtime_os_version: "12.0.0".into(),

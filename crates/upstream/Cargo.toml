@@ -1,5 +1,5 @@
 [package]
-name = "tap-upstream"
+name = "kin-upstream"
 description = "出站 Responses：依官方 TUI 的標頭順序與身分組請求，經 native-tls（vendored OpenSSL）送 chatgpt.com"
 version.workspace = true
 edition.workspace = true
@@ -8,9 +8,9 @@ publish.workspace = true
 license-file.workspace = true
 
 [dependencies]
-tap-contract.workspace = true
-tap-credentials.workspace = true
-tap-identity.workspace = true
+kin-contract.workspace = true
+kin-credentials.workspace = true
+kin-identity.workspace = true
 sha2.workspace = true
 bytes.workspace = true
 futures-util.workspace = true

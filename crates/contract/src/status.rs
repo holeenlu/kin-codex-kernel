@@ -57,7 +57,7 @@ mod tests {
         let health = Health {
             ok: true,
             engine: "codex",
-            provider: "tap-codex-kernel",
+            provider: "kin-codex-kernel",
             version: "0.0.1",
             worker_version: "0.0.1",
             build_sha: "dev",

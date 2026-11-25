@@ -1,5 +1,5 @@
 [package]
-name = "tap-identity"
+name = "kin-identity"
 description = "出站身分：依帳號環境照官方客戶端的規則組出 originator 與 User-Agent（純函式，不含 IO）"
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ publish.workspace = true
 license-file.workspace = true
 
 [dependencies]
-tap-contract.workspace = true
+kin-contract.workspace = true
 sha2.workspace = true
 
 [lints]

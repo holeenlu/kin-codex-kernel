@@ -1,6 +1,6 @@
 //! 控制面的上游錯誤事實；只保留明示、可安全放入內部標頭的短欄位。
+use kin_contract::error::UpstreamFacts;
 use serde_json::Value;
-use tap_contract::error::UpstreamFacts;
 
 /// 只轉送控制面可判讀的額度標頭，保留具名桶與通用視窗的原始名稱。
 pub(super) fn quota_headers<'a>(headers: impl Iterator<Item = (&'a str, &'a str)>) -> Vec<(String, String)> {

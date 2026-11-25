@@ -339,7 +339,7 @@ mod tests {
         let shared = SharedHealth {
             ok: true,
             engine: "codex",
-            provider: "tap-codex-kernel",
+            provider: "kin-codex-kernel",
             version: "0",
             worker_version: "0",
             build_sha: "dev",

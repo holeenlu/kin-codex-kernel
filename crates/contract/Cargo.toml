@@ -1,6 +1,6 @@
 [package]
-name = "tap-contract"
-description = "tap-codex-kernel 與 vm2api 控制面之間的線路契約（純型別，不含 IO）"
+name = "kin-contract"
+description = "kin-codex-kernel 與 vm2api 控制面之間的線路契約（純型別，不含 IO）"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

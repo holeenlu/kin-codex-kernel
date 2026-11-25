@@ -35,7 +35,7 @@ jobs:
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           test "v$version" = "$RELEASE_TAG" || { echo "tag $RELEASE_TAG != v$version"; exit 1; }
-          echo "TAP_BUILD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "KIN_BUILD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Check the tagged release notes
         run: python3 .github/scripts/check_release_notes.py "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
@@ -61,7 +61,7 @@ jobs:
         run: |
           visibility=$(gh api "repos/$GITHUB_REPOSITORY" --jq .visibility)
           [[ "$visibility" =~ ^(public|private|internal)$ ]]
-          echo "TAP_SOURCE_VISIBILITY=$visibility" >> "$GITHUB_ENV"
+          echo "KIN_SOURCE_VISIBILITY=$visibility" >> "$GITHUB_ENV"
 
       - name: Build both targets against glibc 2.34
         run: |
@@ -70,19 +70,19 @@ jobs:
           for pair in x86_64-unknown-linux-gnu:amd64 aarch64-unknown-linux-gnu:arm64; do
             target=${pair%%:*}
             arch=${pair##*:}
-            cargo zigbuild --release --locked -p tap-codex-kernel --target "$target.2.34"
-            binary="dist/tap-codex-kernel-linux-$arch"
-            cp "target/$target/release/tap-codex-kernel" "$binary"
+            cargo zigbuild --release --locked -p kin-codex-kernel --target "$target.2.34"
+            binary="dist/kin-codex-kernel-linux-$arch"
+            cp "target/$target/release/kin-codex-kernel" "$binary"
             cargo xtask check-glibc --binary "$binary" --max 2.34
             record="$binary.build.json"
             cargo xtask build-record --binary "$binary" --target "$target" --out "$record"
             # Older tags hard-coded repository visibility. Record its value at build time.
-            jq --arg visibility "$TAP_SOURCE_VISIBILITY" '.source.visibility = $visibility' "$record" > "$record.tmp"
+            jq --arg visibility "$KIN_SOURCE_VISIBILITY" '.source.visibility = $visibility' "$record" > "$record.tmp"
             mv "$record.tmp" "$record"
           done
           cp NOTICE dist/NOTICE
-          (cd dist && cargo xtask sha256sums tap-codex-kernel-linux-amd64 tap-codex-kernel-linux-arm64 \
-            tap-codex-kernel-linux-amd64.build.json tap-codex-kernel-linux-arm64.build.json NOTICE > SHA256SUMS)
+          (cd dist && cargo xtask sha256sums kin-codex-kernel-linux-amd64 kin-codex-kernel-linux-arm64 \
+            kin-codex-kernel-linux-amd64.build.json kin-codex-kernel-linux-arm64.build.json NOTICE > SHA256SUMS)
           (cd dist && sha256sum -c SHA256SUMS)
 
       - name: Publish the release
@@ -90,13 +90,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git fetch --no-tags origin "refs/tags/$RELEASE_TAG"
-          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$TAP_BUILD_SHA"
+          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$KIN_BUILD_SHA"
           notes="$RUNNER_TEMP/release-notes.md"
+          # Markdown uses literal backticks in both lines below.
+          # shellcheck disable=SC2016
           printf '\n## 建置與附件\n\n來源提交 `%s`。[GitHub Actions 建置紀錄](%s/%s/actions/runs/%s)\n\n' \
-            "$TAP_BUILD_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> "$notes"
+            "$KIN_BUILD_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> "$notes"
+          # shellcheck disable=SC2016
           echo '本次建置通過 fmt、Clippy 與工作區測試。Linux amd64、arm64 執行檔均通過 glibc 2.34 檢查，並已核對附件雜湊。下載全部附件後，可執行 `sha256sum -c SHA256SUMS` 複核。' >> "$notes"
           gh release create "$RELEASE_TAG" dist/* --verify-tag \
-            --title "tap-codex-kernel $RELEASE_TAG" \
+            --title "kin-codex-kernel $RELEASE_TAG" \
             --notes-file "$notes" \
             --latest
           latest_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)

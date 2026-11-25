@@ -10,10 +10,10 @@ use std::os::unix::fs::PermissionsExt;
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode};
 use http_body_util::BodyExt;
+use kin_api::{AppState, BuildInfo, router, serve};
+use kin_contract::config::SingleAccountConfig;
+use kin_contract::headers::{INTERNAL_TOKEN, LEGACY_INTERNAL_TOKEN, UPSTREAM_SENT};
 use serde_json::{Value, json};
-use tap_api::{AppState, BuildInfo, router, serve};
-use tap_contract::config::SingleAccountConfig;
-use tap_contract::headers::{INTERNAL_TOKEN, LEGACY_INTERNAL_TOKEN, UPSTREAM_SENT};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
@@ -22,7 +22,7 @@ const TOKEN: &str = "test-internal-token";
 
 fn build() -> BuildInfo {
     BuildInfo {
-        name: "tap-codex-kernel",
+        name: "kin-codex-kernel",
         version: "0.0.0-test",
         build_sha: "test",
     }
@@ -100,7 +100,7 @@ async fn health_has_the_fields_the_control_plane_reads_and_no_status() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["ok"], true);
     assert_eq!(body["engine"], "codex");
-    assert_eq!(body["provider"], "tap-codex-kernel");
+    assert_eq!(body["provider"], "kin-codex-kernel");
     assert_eq!(body["vm_id"], "vm-test");
     assert_eq!(body["abi"], 1);
     assert_eq!(body["worker_version"], body["version"]);
@@ -114,7 +114,7 @@ async fn describe_reports_abi_1_with_responses_websocket_and_cancel() {
     let (status, _, body) = call(app(1024), authed("GET", "/internal/v1/describe", Body::empty())).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["abi"], 1);
-    assert_eq!(body["kernel"], "tap-codex-kernel");
+    assert_eq!(body["kernel"], "kin-codex-kernel");
     assert_eq!(
         body["capabilities"],
         json!([
@@ -257,7 +257,7 @@ async fn serves_on_a_private_unix_socket_and_cleans_up() {
 #[tokio::test]
 async fn refuses_to_replace_a_directory() {
     let dir = tempfile::tempdir().unwrap();
-    let err = tap_api::bind(dir.path()).unwrap_err();
+    let err = kin_api::bind(dir.path()).unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
     assert!(dir.path().is_dir());
 }

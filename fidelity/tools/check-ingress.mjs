@@ -14,7 +14,7 @@ const [bin, wsModule] = process.argv.slice(2)
 const { WebSocketServer } = createRequire(import.meta.url)(wsModule || 'ws')
 const prompt = 'Test fixture. ' + 'history-abc123 '.repeat(21000)
 for (const useWs of [false, true]) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tap-ingress-'))
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kin-ingress-'))
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false })
   const rows = []
   let n = 0,

@@ -23,12 +23,12 @@ use bytes::Bytes;
 #[cfg(test)]
 use futures_util::SinkExt;
 use futures_util::{FutureExt, Stream, StreamExt};
+use kin_contract::envelope::WsReplay;
+use kin_contract::error::{KernelError, UpstreamFacts};
+use kin_contract::send::UpstreamSent;
 use reqwest::header::{HeaderName, HeaderValue};
 use rustls::ClientConfig;
 use serde_json::Value;
-use tap_contract::envelope::WsReplay;
-use tap_contract::error::{KernelError, UpstreamFacts};
-use tap_contract::send::UpstreamSent;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 #[cfg(test)]
@@ -192,7 +192,7 @@ impl std::fmt::Debug for Turn {
 }
 
 impl WebsocketTransport {
-    pub(super) fn configure(&mut self, proxy: &str, limits: tap_contract::config::WsLimits) {
+    pub(super) fn configure(&mut self, proxy: &str, limits: kin_contract::config::WsLimits) {
         self.capacity = crate::ws_capacity::Capacity::for_proxy(proxy, limits);
         self.read_idle =
             (limits.read_idle_ms != 0).then(|| Duration::from_millis(limits.read_idle_ms.into()));

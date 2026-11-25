@@ -4,8 +4,8 @@ use axum::extract::{Request, State};
 use axum::http::HeaderMap;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use tap_contract::error::KernelError;
-use tap_contract::headers::{INTERNAL_TOKEN, LEGACY_INTERNAL_TOKEN};
+use kin_contract::error::KernelError;
+use kin_contract::headers::{INTERNAL_TOKEN, LEGACY_INTERNAL_TOKEN};
 
 use crate::error::ApiError;
 use crate::state::AppState;

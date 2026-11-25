@@ -1,4 +1,4 @@
-//! tap-codex-kernel 與 vm2api 控制面之間的線路契約。
+//! kin-codex-kernel 與 vm2api 控制面之間的線路契約。
 //!
 //! 這個 crate 只放型別與常數，不做任何 IO，也不相依 HTTP 框架；
 //! 內部 API、測試與日後的共享模式都以它為唯一的契約來源。

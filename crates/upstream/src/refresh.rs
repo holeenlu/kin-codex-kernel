@@ -11,12 +11,12 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use kin_contract::send::UpstreamSent;
+use kin_credentials::stored::Refreshed;
+use kin_identity::Profile;
 use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderValue, USER_AGENT};
 use serde::Deserialize;
 use serde_json::Value;
-use tap_contract::send::UpstreamSent;
-use tap_credentials::stored::Refreshed;
-use tap_identity::Profile;
 
 use crate::HttpUpstream;
 

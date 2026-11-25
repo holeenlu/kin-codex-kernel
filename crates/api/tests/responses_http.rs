@@ -11,10 +11,10 @@ use axum::http::{HeaderMap, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use http_body_util::BodyExt;
+use kin_api::{AppState, BuildInfo, router};
+use kin_contract::config::SingleAccountConfig;
+use kin_contract::headers::{INTERNAL_TOKEN, UPSTREAM_SENT};
 use serde_json::{Value, json};
-use tap_api::{AppState, BuildInfo, router};
-use tap_contract::config::SingleAccountConfig;
-use tap_contract::headers::{INTERNAL_TOKEN, UPSTREAM_SENT};
 use tower::ServiceExt;
 
 const TOKEN: &str = "test-internal-token";
@@ -109,7 +109,7 @@ fn configured_kernel(base: &str, dir: &tempfile::TempDir, extra: &Value) -> axum
         .extend(extra.as_object().unwrap().clone());
     let config = SingleAccountConfig::from_slice(&serde_json::to_vec(&raw).unwrap()).unwrap();
     let build = BuildInfo {
-        name: "tap-codex-kernel",
+        name: "kin-codex-kernel",
         version: "0.0.0-test",
         build_sha: "test",
     };
