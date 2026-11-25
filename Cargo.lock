@@ -896,7 +896,7 @@ dependencies = [
 
 [[package]]
 name = "kin-api"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "axum",
@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "kin-codex-kernel"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "kin-api",
@@ -937,7 +937,7 @@ dependencies = [
 
 [[package]]
 name = "kin-contract"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -946,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "kin-credentials"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "kin-contract",
  "serde",
@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "kin-identity"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "kin-contract",
  "sha2",
@@ -965,7 +965,7 @@ dependencies = [
 
 [[package]]
 name = "kin-registry"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "kin-contract",
  "serde_json",
@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "kin-upstream"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -2288,7 +2288,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xtask"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "serde_json",
