@@ -156,3 +156,7 @@ CPR main 由 `037cbcd6052fdb5741daf7ee8ef0f2c487319958` 對齊至 `21622eeacdab9
 ### 2026-11-25 main 雙來源同步
 
 CPR main 維持 `21622eeacdab919013408a4b77f5536ed8888f32`。官方 Codex main 由 `75df5098a6d92b40dc61e7a9964233ce9c359677` 對齊至 `44308610ef5cbc03d149707735878b0c8743b2df`，共 22 筆。官方延後建立代理的 `TurnItem`。Tap 的非串流回應只交付終態，同時保留中間事件的計時及續接判斷。複核確認本批次無需移植，並用 Tap v0.4.6 驗證兩種傳輸的回應行為。出站實錄仍為官方正式版 0.171.0 Linux amd64。逐提交處置與驗證見[本輪同步紀錄](docs/sync/2026-11-25-main.md)。
+
+### 2026-11-25 早間 main 雙來源同步
+
+CPR main 維持 `21622eeacdab919013408a4b77f5536ed8888f32`。官方 Codex main 由 `44308610ef5cbc03d149707735878b0c8743b2df` 審查並對齊至 `b0b0852ee0a9105caa15a93e78287ef78e5f40bd`，共 27 筆，均無需移植。官方模型目錄的字串去重用於 CLI 解析後的模型物件，Tap 的 `models` 操作轉送原始回應本體。圖片和 Responses 使用的 `x-codex-turn-metadata` 線路值相同。兩種 Responses 傳輸與 Tap 的 HTTP 非串流解析均無程式變更。出站實錄沿用正式版 `rust-v0.171.0` Linux x64。逐提交處置和驗證見[早間同步紀錄](docs/sync/2026-11-25-b0b0852e-main.md)。
