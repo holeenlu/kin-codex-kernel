@@ -164,3 +164,7 @@ CPR main 維持 `21622eeacdab919013408a4b77f5536ed8888f32`。官方 Codex main �
 ### 2026-11-25 下午 main 雙來源同步
 
 CPR main 由 `21622eeacdab919013408a4b77f5536ed8888f32` 對齊至 `7e32ba5dc01c2d62e0317c2d169fa7de67d6658b`（3 筆）。官方 Codex main 由 `b0b0852ee0a9105caa15a93e78287ef78e5f40bd` 對齊至 `ebd0765aafa255d63ebf690ebdffe0164dc14a0c`（27 筆）。CPR 的終態後 WS 控制通知，以及官方的自訂目錄探索、工作負載身分和 Realtime 語音偏好均在 Kin 現行 ABI 範圍之外。本輪只更新來源紀錄，CLI 實錄沿用正式版 0.171.0 Linux x64。見[逐提交處置](docs/sync/2026-11-25-ebd0765a-main.md)。
+
+### 2026-11-25 晚間 main 雙來源同步
+
+CPR main 從 `7e32ba5dc01c2d62e0317c2d169fa7de67d6658b` 對齊至 `9469260dbae9fd31cf6e1233ca48f76dbfc116fb`（4 筆）。官方 Codex main 從 `ebd0765aafa255d63ebf690ebdffe0164dc14a0c` 對齊至 `077eab36fd4c43e075fe1f13d50e4d04b2d414ee`（5 筆）。九筆均無需移植。CPR 的工作區匿名化是閘道選配政策。官方的審核資訊與配額方案顯示分別屬於代理訊息及 TUI。逐提交處置見[晚間同步紀錄](docs/sync/2026-11-25-077eab36-main.md)。
