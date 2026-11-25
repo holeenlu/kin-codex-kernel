@@ -1,6 +1,6 @@
 //! 路由與處理程式。處理程式只負責 HTTP 邊界，回傳 [`ApiError`] 而不自行拼錯誤 JSON。
 
-use axum::body::{Body, to_bytes};
+use axum::body::{Body, Bytes, to_bytes};
 use axum::extract::{DefaultBodyLimit, State};
 use axum::http::HeaderMap;
 use axum::http::header::CONTENT_TYPE;
@@ -39,6 +39,12 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/internal/v1/interrupt", post(interrupt))
         .route("/internal/v1/cancel", post(cancel));
+    if matches!(state.mode(), Mode::Single { .. }) {
+        router = router.route(
+            "/internal/v1/codex/responses/packed",
+            post(crate::packed::responses).layer(DefaultBodyLimit::disable()),
+        );
+    }
     if matches!(state.mode(), Mode::Shared { .. }) {
         router = accounts::routes(router);
     }
@@ -52,6 +58,7 @@ async fn health(State(state): State<AppState>) -> Response {
     let build = state.build();
     match state.mode() {
         Mode::Single { config, upstream } => Json(Health {
+            uds_packed_v1: true,
             ok: true,
             engine: "codex",
             provider: build.name,
@@ -96,7 +103,10 @@ async fn describe(State(state): State<AppState>) -> Json<Describe> {
         Capability::Analytics,
     ];
     let (abi, user_agent) = match state.mode() {
-        Mode::Single { config, .. } => (Abi::SingleAccount, config.custom_user_agent()),
+        Mode::Single { config, .. } => {
+            capabilities.push(Capability::UdsPackedV1);
+            (Abi::SingleAccount, config.custom_user_agent())
+        }
         Mode::Shared { .. } => {
             capabilities.extend([Capability::MultiAccount, Capability::AccountOps]);
             (Abi::Shared, None)
@@ -122,6 +132,10 @@ async fn responses(State(state): State<AppState>, body: Body) -> Result<Response
     let raw = to_bytes(body, state.body_limit())
         .await
         .map_err(|_| KernelError::BodyTooLarge)?;
+    respond(state, raw).await
+}
+
+pub(crate) async fn respond(state: AppState, raw: Bytes) -> Result<Response, ApiError> {
     let envelope: ResponsesEnvelope =
         serde_json::from_slice(&raw).map_err(|err| KernelError::InvalidBody(err.to_string()))?;
     let target = state.target(&envelope, raw.len())?;

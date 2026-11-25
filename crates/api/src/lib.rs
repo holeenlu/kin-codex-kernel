@@ -8,6 +8,7 @@ mod auth;
 mod credential;
 mod error;
 mod listener;
+mod packed;
 mod routes;
 mod state;
 

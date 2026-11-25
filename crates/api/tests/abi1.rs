@@ -124,7 +124,8 @@ async fn describe_reports_abi_1_with_responses_websocket_and_cancel() {
             "responses_interrupt",
             "responses_ws_replay",
             "responses_turn_timing",
-            "analytics"
+            "analytics",
+            "uds_packed_v1"
         ])
     );
     assert_eq!(

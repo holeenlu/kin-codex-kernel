@@ -911,6 +911,7 @@ dependencies = [
  "kin-upstream",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "tokio-tungstenite",

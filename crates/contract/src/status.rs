@@ -10,6 +10,7 @@ use crate::abi::{Abi, Capability};
 /// 本體裡若有非數字的 `status`，健康判斷就會失敗。
 #[derive(Debug, Clone, Serialize)]
 pub struct Health {
+    pub uds_packed_v1: bool,
     pub ok: bool,
     pub engine: &'static str,
     pub provider: &'static str,
@@ -55,6 +56,7 @@ mod tests {
     #[test]
     fn health_never_serializes_a_status_field() {
         let health = Health {
+            uds_packed_v1: true,
             ok: true,
             engine: "codex",
             provider: "kin-codex-kernel",

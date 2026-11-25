@@ -26,6 +26,7 @@ pub enum Capability {
     Responses,
     ResponsesWebsocket,
     ResponsesWsReplay,
+    UdsPackedV1,
     ResponsesInterrupt,
     ResponsesTurnTiming,
     Cancel,
