@@ -339,25 +339,40 @@ async fn refresh_detached(
             sent: UpstreamSent::No,
         });
     }
-    let Some(refresh_token) = current.refresh_token.clone() else {
-        auth.mark_reauth("no_refresh_token");
-        return Err(KernelError::ReauthRequired(account_ref.to_owned()));
+    let result = match current.refresh_token.as_deref() {
+        Some(token) => runtime.refresh(token, reason, &profile).await,
+        None => Err(RefreshError::Permanent {
+            code: "no_refresh_token".to_owned(),
+        }),
     };
-    match runtime.refresh(&refresh_token, reason, &profile).await {
+    match result {
         Ok(tokens) => commit(&env, &auth, &current, tokens, reason).await,
-        Err(RefreshError::Permanent { code }) => {
-            // 換票期間匯入了新憑據：被拒的是舊的 refresh token，不能把新憑據標成需要重新授權。
-            if let Some(replaced) = replaced_since(&env, &auth, &current).await? {
-                return Ok(replaced);
-            }
-            tracing::warn!(account = account_ref, code = %code, "refresh token rejected; reauthorization required");
+        Err(err) => commit_failure(&env, &auth, &current, err).await,
+    }
+}
+
+/// 與匯入共用寫入鎖：核對失敗所屬的憑據並更新狀態，兩步之間不能插入匯入。
+async fn commit_failure(
+    env: &AccountEnv,
+    auth: &AccountAuth,
+    current: &Stored,
+    failure: RefreshError,
+) -> Result<Stored, KernelError> {
+    let _write = auth.write.lock().await;
+    let latest = stored::read(&env.credential_path)
+        .await?
+        .ok_or(KernelError::NoCredential)?;
+    if latest.generation != current.generation || latest.refresh_token != current.refresh_token {
+        return Ok(latest);
+    }
+    let account_ref = env.account_ref.as_str();
+    match failure {
+        RefreshError::Permanent { code } => {
+            tracing::warn!(account = account_ref, code = %code, "credential requires reauthorization");
             auth.mark_reauth(&code);
             Err(KernelError::ReauthRequired(account_ref.to_owned()))
         }
-        Err(RefreshError::Transient { message, sent }) => {
-            if let Some(replaced) = replaced_since(&env, &auth, &current).await? {
-                return Ok(replaced);
-            }
+        RefreshError::Transient { message, sent } => {
             // 連不到 token 端點是出口的問題（熔斷處理），不算 refresh token 換不到票。
             if sent != UpstreamSent::No {
                 auth.record_failure();
@@ -433,17 +448,6 @@ async fn commit(
             }
         }
     }
-}
-
-/// 在寫入鎖下重讀：檔案已被換成另一份（代次或 refresh token 不同）時回傳新的。
-async fn replaced_since(
-    env: &AccountEnv,
-    auth: &AccountAuth,
-    seen: &Stored,
-) -> Result<Option<Stored>, KernelError> {
-    let _write = auth.write.lock().await;
-    let now = stored::read(&env.credential_path).await?;
-    Ok(now.filter(|now| now.generation != seen.generation || now.refresh_token != seen.refresh_token))
 }
 
 /// 這次推理請求要用的憑據。共享模式在這裡做請求前的刷新。
@@ -647,6 +651,64 @@ pub(crate) async fn import(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn refresh_failures_and_imports_commit_in_write_lock_order() {
+        use futures_util::FutureExt;
+        use serde_json::json;
+
+        for failure in [
+            RefreshError::Permanent {
+                code: "refresh_token_reused".into(),
+            },
+            RefreshError::Transient {
+                message: "unavailable".into(),
+                sent: UpstreamSent::Yes,
+            },
+        ] {
+            for import_first in [false, true] {
+                let dir = tempfile::tempdir().unwrap();
+                let env: AccountEnv = serde_json::from_value(json!({
+                    "ref": "a", "env_generation": 1, "device_id": "device-a",
+                    "credential_path": dir.path().join("credential.json"), "max_concurrency": 1
+                }))
+                .unwrap();
+                let auth = AccountAuth::default();
+                let tokens = |access: &str| {
+                    serde_json::from_value(json!({
+                        "access_token": access, "refresh_token": access
+                    }))
+                    .unwrap()
+                };
+                import(&env, &auth, tokens("old"), 0).await.unwrap();
+                let old = stored::read(&env.credential_path).await.unwrap().unwrap();
+
+                // 先持有寫入鎖，明確排定兩個 future 的 FIFO 順序，再放行。
+                let held = auth.write.lock().await;
+                let mut replace = std::pin::pin!(import(&env, &auth, tokens("new"), old.generation));
+                let mut reject = std::pin::pin!(commit_failure(&env, &auth, &old, failure.clone()));
+                if import_first {
+                    assert!(replace.as_mut().now_or_never().is_none());
+                    assert!(reject.as_mut().now_or_never().is_none());
+                } else {
+                    assert!(reject.as_mut().now_or_never().is_none());
+                    assert!(replace.as_mut().now_or_never().is_none());
+                }
+                drop(held);
+                let (generation, result) = tokio::join!(replace, reject);
+                assert_eq!(generation.unwrap(), 2);
+                if import_first {
+                    assert_eq!(result.unwrap().generation, 2);
+                } else {
+                    assert!(result.is_err());
+                }
+                let latest = stored::read(&env.credential_path).await.unwrap().unwrap();
+                assert_eq!(latest.access_token.as_deref(), Some("new"));
+                assert_eq!(auth.status(Some(&latest)), CredentialStatus::Ok);
+                assert!(auth.state().failures.is_empty());
+            }
+        }
+    }
 
     #[test]
     fn the_background_spread_is_stable_and_bounded() {
