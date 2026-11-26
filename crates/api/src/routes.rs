@@ -108,7 +108,11 @@ async fn describe(State(state): State<AppState>) -> Json<Describe> {
             (Abi::SingleAccount, config.custom_user_agent())
         }
         Mode::Shared { .. } => {
-            capabilities.extend([Capability::MultiAccount, Capability::AccountOps]);
+            capabilities.extend([
+                Capability::MultiAccount,
+                Capability::AccountOps,
+                Capability::AccountManagementGeneration,
+            ]);
             (Abi::Shared, None)
         }
     };

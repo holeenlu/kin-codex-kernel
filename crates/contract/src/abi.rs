@@ -32,5 +32,6 @@ pub enum Capability {
     Cancel,
     Analytics,
     AccountOps,
+    AccountManagementGeneration,
     MultiAccount,
 }
