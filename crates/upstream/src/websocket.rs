@@ -803,6 +803,14 @@ impl WebsocketTransport {
     }
 }
 
+/// 首生成以前，分開計算下游兩次 pull 之間的空檔，以及核心等待下一幀的時間。
+#[derive(Default)]
+struct StreamWait {
+    last_yield: Option<Instant>,
+    unpolled: Duration,
+    reading: Duration,
+}
+
 impl Turn {
     pub(super) fn interrupt_channel(&mut self) -> crate::interrupt::InterruptHandle {
         let (handle, rx) = crate::interrupt::channel();
@@ -875,27 +883,61 @@ impl Turn {
 
     /// 串流：每個文字訊框轉成 `event: response` 的 SSE 事件。終態事件之後把連線留給同一個對話的下一輪。
     pub fn into_stream(self) -> impl Stream<Item = Result<Bytes, io::Error>> + Send + 'static {
-        futures_util::stream::unfold(Some((self, true)), |state| async move {
-            let (mut turn, first) = state?;
-            let text = if first {
-                std::mem::take(&mut turn.first)
-            } else {
-                match turn.next_controlled().await.accepted_text() {
-                    Ok(text) => text,
-                    Err(err) => {
-                        turn.timing.end("interrupted", Some("1"));
-                        return Some((Err(io::Error::new(io::ErrorKind::UnexpectedEof, err)), None));
+        futures_util::stream::unfold(
+            Some((self, true, Some(StreamWait::default()))),
+            |state| async move {
+                let (mut turn, first, mut wait) = state?;
+                let text = if first {
+                    std::mem::take(&mut turn.first)
+                } else {
+                    let read_start = wait.as_mut().map(|w| {
+                        let now = Instant::now();
+                        if let Some(last) = w.last_yield {
+                            w.unpolled += now.duration_since(last);
+                        }
+                        now
+                    });
+                    let next = turn.next_controlled().await;
+                    if let (Some(w), Some(start)) = (&mut wait, read_start) {
+                        w.reading += start.elapsed();
+                    }
+                    match next.accepted_text() {
+                        Ok(text) => text,
+                        Err(err) => {
+                            turn.timing.end("interrupted", Some("1"));
+                            return Some((Err(io::Error::new(io::ErrorKind::UnexpectedEof, err)), None));
+                        }
+                    }
+                };
+                let done = turn.observe(&text, first);
+                let frame = Bytes::from(format!("event: response\ndata: {text}\n\n"));
+                if let Some(w) = &mut wait {
+                    let mut generated = false;
+                    turn.timing.update(|f| {
+                        let at = turn.timing.ms();
+                        if first {
+                            f.ws_first_yield_ms = Some(at);
+                        }
+                        if f.first_generated_ms.is_some() {
+                            f.ws_generated_yield_ms = Some(at);
+                            f.ws_pre_generated_read_ms = Some(millis(w.reading));
+                            f.ws_pre_generated_unpolled_ms = Some(millis(w.unpolled));
+                            generated = true;
+                        }
+                    });
+                    if generated {
+                        wait = None;
+                    } else {
+                        w.last_yield = Some(Instant::now());
                     }
                 }
-            };
-            let done = turn.observe(&text, first);
-            let frame = Bytes::from(format!("event: response\ndata: {text}\n\n"));
-            if done {
-                turn.finish();
-                return Some((Ok(frame), None));
-            }
-            Some((Ok(frame), Some((turn, false))))
-        })
+                if done {
+                    turn.finish();
+                    return Some((Ok(frame), None));
+                }
+                Some((Ok(frame), Some((turn, false, wait))))
+            },
+        )
     }
 
     pub async fn into_terminal_event(mut self) -> Result<Value, KernelError> {

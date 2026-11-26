@@ -38,6 +38,10 @@ HTTP 推理或 WS 握手回 429 時，核心另行保留額度與點數標頭，
 
 沒有生產量測前不強制所有出口共用同一個小上限。設定於程序啟動時讀取。短預算逾時取消未寫入的握手，再送一次 HTTP；不在背景競送推理。成功串流的讀取計時只在要求下一塊資料時啟動，不把下游背壓或整輪執行時間當作逾時。
 
+## WebSocket 首生成前的串流計時
+
+核心將第一個 SSE 幀與第一個含生成內容的 SSE 幀交給 HTTP body 消費者時，分別記錄本輪時刻 `ws_first_yield_ms` 與 `ws_generated_yield_ms`。兩者都早於客戶端顯示。從第一幀交付到首生成幀交付，`ws_pre_generated_unpolled_ms` 累計前一幀已交付、消費者尚未再次取幀的時間；`ws_pre_generated_read_ms` 累計取幀後等待 WebSocket 資料或控制事件的時間，含執行器排程。解析和建幀也會花時間，兩個累計值不必加總為完整區間。首幀已含生成時兩項都是零，未觀察到生成或非 WS 串流時保留缺值。新欄位沿用內部收據與 trailer。
+
 ## 單帳號 Unix socket 傳輸
 
 ABI 1 的 health 欄位及 describe 能力 `uds_packed_v1` 允許閘道向 `POST /internal/v1/codex/responses/packed` 傳送位元組。端點沿用 internal token，接受 identity 或 gzip。傳輸大小及完整還原後的 JSON 都受該槽的請求上限約束。

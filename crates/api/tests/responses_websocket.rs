@@ -26,12 +26,13 @@ mod handshake;
 type Connection = (axum::http::HeaderMap, Vec<String>);
 
 #[derive(Clone, Default)]
-struct Seen(Arc<Mutex<Vec<Connection>>>);
+struct Seen(Arc<Mutex<Vec<Connection>>>, Arc<tokio::sync::Notify>);
 
 /// 假上游的行為。
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Complete,
+    GateBeforeGenerated,
     TurnMetadata,
     /// 第一個事件就是 429 的 error。
     FirstError,
@@ -163,6 +164,9 @@ async fn start_ws_upstream(mode: Mode) -> (String, Seen) {
                         ]
                     };
                     for event in events {
+                        if mode == Mode::GateBeforeGenerated && event.contains("response.output_text.delta") {
+                            record.1.notified().await;
+                        }
                         ws.send(Message::Text(event.into())).await.unwrap();
                     }
                     if mode == Mode::CloseAfterTurn {
@@ -219,6 +223,42 @@ fn identified_envelope(stream: bool, request_id: &str) -> Request<Body> {
         .header("content-type", "application/json")
         .body(Body::from(body))
         .unwrap()
+}
+
+#[tokio::test]
+async fn records_upstream_wait_separately_from_downstream_poll_gaps_before_generation() {
+    use std::time::Duration;
+    let pause = Duration::from_millis(50);
+    let (base, seen) = start_ws_upstream(Mode::GateBeforeGenerated).await;
+    let dir = tempfile::tempdir().unwrap();
+    let response = kernel(&base, &dir).oneshot(envelope(true)).await.unwrap();
+    let mut body = response.into_body();
+    let created = body.frame().await.unwrap().unwrap().into_data().unwrap();
+    assert!(
+        std::str::from_utf8(&created)
+            .unwrap()
+            .contains("response.created")
+    );
+    tokio::time::sleep(pause).await;
+    let reasoning = body.frame().await.unwrap().unwrap().into_data().unwrap();
+    assert!(
+        std::str::from_utf8(&reasoning)
+            .unwrap()
+            .contains("encrypted_content")
+    );
+    let mut rest = std::pin::pin!(body.collect());
+    assert!(tokio::time::timeout(pause, &mut rest).await.is_err());
+    seen.1.notify_one();
+    let rest = rest.await.unwrap();
+    let facts: Value =
+        serde_json::from_slice(rest.trailers().unwrap()["x-tap-turn-timing"].as_bytes()).unwrap();
+    assert!(facts["ws_pre_generated_read_ms"].as_u64().unwrap() >= 45);
+    assert!(facts["ws_pre_generated_unpolled_ms"].as_u64().unwrap() >= 45);
+    let first = facts["ws_first_yield_ms"].as_u64().unwrap();
+    let generated = facts["first_generated_ms"].as_u64().unwrap();
+    assert!(first >= facts["first_event_ms"].as_u64().unwrap());
+    assert!(generated >= first + 90);
+    assert!(facts["ws_generated_yield_ms"].as_u64().unwrap() >= generated);
 }
 
 #[tokio::test]
