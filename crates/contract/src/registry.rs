@@ -119,6 +119,8 @@ pub struct AccountDelete {
 /// `POST /internal/v1/accounts/reconcile` 的本體：完整帳號清單，核心以它取代整個登錄。
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReconcileRequest {
+    #[serde(default)]
+    pub expected_registry_revision: Option<String>,
     pub accounts: Vec<AccountEnv>,
 }
 
@@ -211,6 +213,7 @@ pub struct AccountSummary {
 /// `GET /internal/v1/accounts` 的回應。
 #[derive(Debug, Clone, Serialize)]
 pub struct AccountList {
+    pub registry_revision: String,
     pub registry_state: RegistryState,
     pub accounts: Vec<AccountSummary>,
 }

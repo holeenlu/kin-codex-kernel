@@ -81,7 +81,7 @@ fn build(config: &SharedConfig) -> impl Fn(&AccountEnv) -> Result<HttpUpstream, 
 
 async fn list(State(state): State<AppState>) -> Result<Response, ApiError> {
     let (registry, _) = registry(&state)?;
-    let (registry_state, entries) = registry.list_with_paths();
+    let (registry_state, entries, registry_revision) = registry.versioned_list();
     // 保留排序及個別帳號代次缺失的 ABI 行為，限制同時開啟的憑據檔數。
     let accounts = stream::iter(entries)
         .map(|mut row| async move {
@@ -94,6 +94,7 @@ async fn list(State(state): State<AppState>) -> Result<Response, ApiError> {
         .collect()
         .await;
     Ok(Json(AccountList {
+        registry_revision,
         registry_state,
         accounts,
     })
@@ -103,7 +104,11 @@ async fn list(State(state): State<AppState>) -> Result<Response, ApiError> {
 async fn reconcile(State(state): State<AppState>, body: Body) -> Result<Response, ApiError> {
     let (registry, config) = registry(&state)?;
     let request: ReconcileRequest = read_json(body, RECONCILE_BODY_LIMIT).await?;
-    let ack = registry.reconcile(request.accounts, build(config))?;
+    let ack = registry.reconcile_if_current(
+        request.accounts,
+        request.expected_registry_revision.as_deref(),
+        build(config),
+    )?;
     tracing::info!(accounts = ack.accounts, "account registry reconciled");
     Ok(Json(ack).into_response())
 }

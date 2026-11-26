@@ -9,6 +9,7 @@
 //! 執行環境用泛型，CAS 與排空的規則可以不碰網路就測試；建立執行環境的函式由呼叫端傳入。
 
 use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, RandomState};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockWriteGuard, Weak};
@@ -201,6 +202,8 @@ enum Slot<R, A> {
 
 #[derive(Debug)]
 struct Inner<R, A> {
+    revision: u64,
+    max_body: u64,
     state: RegistryState,
     slots: HashMap<String, Slot<R, A>>,
 }
@@ -211,6 +214,19 @@ impl<R, A> Inner<R, A> {
             Some(Slot::Live(live)) if same_runtime(&live.env, env) => Some(Arc::clone(&live.runtime)),
             _ => None,
         }
+    }
+
+    fn changed(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+        self.max_body = self
+            .slots
+            .values()
+            .filter_map(|slot| match slot {
+                Slot::Live(live) => Some(live.env.max_request_bytes),
+                Slot::Tombstone { .. } => None,
+            })
+            .max()
+            .unwrap_or(DEFAULT_MAX_REQUEST_BYTES);
     }
 }
 
@@ -295,6 +311,8 @@ impl<R, A> Registry<R, A> {
         Self {
             inner: RwLock::new(Inner {
                 state: RegistryState::Empty,
+                revision: RandomState::new().hash_one(()),
+                max_body: DEFAULT_MAX_REQUEST_BYTES,
                 slots: HashMap::new(),
             }),
             max_accounts,
@@ -364,6 +382,7 @@ impl<R, A> Registry<R, A> {
         inner
             .slots
             .insert(path_ref.to_owned(), Slot::Live(Live { env, runtime, gate }));
+        inner.changed();
         Ok(outcome)
     }
 
@@ -445,6 +464,7 @@ impl<R, A> Registry<R, A> {
                 gate,
             },
         );
+        inner.changed();
         Ok(DeleteAck {
             ok: true,
             account_ref: path_ref.to_owned(),
@@ -458,7 +478,20 @@ impl<R, A> Registry<R, A> {
     /// 期間狀態為 `reconciling`，所有推理與 PUT／DELETE 回 `registry_not_ready`。
     /// 代次與內容都沒變的帳號保留原執行環境；不在清單內的帳號照 DELETE 處理。
     /// 任何一筆不合法或建立失敗，整份不套用，登錄回到原狀態。
-    pub fn reconcile<F>(&self, envs: Vec<AccountEnv>, mut build: F) -> Result<ReconcileAck, KernelError>
+    pub fn reconcile<F>(&self, envs: Vec<AccountEnv>, build: F) -> Result<ReconcileAck, KernelError>
+    where
+        F: FnMut(&AccountEnv) -> Result<R, String>,
+    {
+        self.reconcile_if_current(envs, None, build)
+    }
+
+    /// 傳入先前讀得的登錄版本時，全量替換與增量命令共用同一個 CAS 邊界。
+    pub fn reconcile_if_current<F>(
+        &self,
+        envs: Vec<AccountEnv>,
+        expected: Option<&str>,
+        mut build: F,
+    ) -> Result<ReconcileAck, KernelError>
     where
         F: FnMut(&AccountEnv) -> Result<R, String>,
     {
@@ -485,6 +518,9 @@ impl<R, A> Registry<R, A> {
             let mut inner = self.write();
             if inner.state == RegistryState::Reconciling {
                 return Err(KernelError::RegistryNotReady);
+            }
+            if expected.is_some_and(|revision| revision != format!("{:016x}", inner.revision)) {
+                return Err(KernelError::GenerationConflict);
             }
             let previous = inner.state;
             inner.state = RegistryState::Reconciling;
@@ -551,6 +587,7 @@ impl<R, A> Registry<R, A> {
         }
         inner.slots = slots;
         inner.state = RegistryState::Ready;
+        inner.changed();
         Ok(ReconcileAck {
             ok: true,
             registry_state: RegistryState::Ready,
@@ -598,8 +635,9 @@ impl<R, A> Registry<R, A> {
 
     /// `GET /internal/v1/accounts`：登錄中的帳號，加上仍在排空的已刪除帳號。
     pub fn list(&self) -> AccountList {
-        let (registry_state, rows) = self.list_with_paths();
+        let (registry_state, rows, registry_revision) = self.versioned_list();
         AccountList {
+            registry_revision,
             registry_state,
             accounts: rows.into_iter().map(|row| row.summary).collect(),
         }
@@ -607,6 +645,11 @@ impl<R, A> Registry<R, A> {
 
     /// 在同一把讀鎖下取得環境代次與路徑，讓呼叫端在鎖外補上憑據代次。
     pub fn list_with_paths(&self) -> (RegistryState, Vec<ListedAccount>) {
+        let (state, accounts, _) = self.versioned_list();
+        (state, accounts)
+    }
+
+    pub fn versioned_list(&self) -> (RegistryState, Vec<ListedAccount>, String) {
         let inner = self.read();
         let state = inner.state;
         let mut accounts: Vec<_> = inner
@@ -635,9 +678,10 @@ impl<R, A> Registry<R, A> {
                 })
             })
             .collect();
+        let revision = format!("{:016x}", inner.revision);
         drop(inner);
         accounts.sort_by(|a, b| a.summary.account_ref.cmp(&b.summary.account_ref));
-        (state, accounts)
+        (state, accounts, revision)
     }
 
     /// 單一帳號的快照，供帳號健康回報。已刪除的帳號回 `account_unknown`。
@@ -742,15 +786,7 @@ impl<R, A> Registry<R, A> {
 
     /// 讀推理請求本體時的上限：登錄中最大的那個帳號上限。實際比對在取得帳號之後。
     pub fn max_request_bytes(&self) -> u64 {
-        self.read()
-            .slots
-            .values()
-            .filter_map(|slot| match slot {
-                Slot::Live(live) => Some(live.env.max_request_bytes),
-                Slot::Tombstone { .. } => None,
-            })
-            .max()
-            .unwrap_or(DEFAULT_MAX_REQUEST_BYTES)
+        self.read().max_body
     }
 }
 

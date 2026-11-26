@@ -506,3 +506,38 @@ fn control_plane_commands_wait_for_the_registry_and_respect_disabling() {
     assert_eq!(code(registry.managed("a", true)), "account_unknown");
     assert!(!account_token.is_cancelled());
 }
+
+#[test]
+fn delayed_snapshot_cannot_undo_an_incremental_delete() {
+    let account = env("a", 1, 0);
+    let registry = ready(vec![account.clone()]);
+    let before = registry.list().registry_revision;
+    registry.delete("a", 2, false).unwrap();
+    let result = registry.reconcile_if_current(vec![account], Some(&before), build);
+    assert_eq!(code(result), "generation_conflict");
+    assert!(registry.list().accounts.is_empty());
+    let revision = registry.list().registry_revision;
+    registry
+        .reconcile_if_current(vec![], Some(&revision), build)
+        .unwrap();
+}
+
+#[test]
+fn cached_body_limit_tracks_largest_live_account() {
+    let registry = ready(vec![with(env("a", 1, 0), |a| a.max_request_bytes = 100)]);
+    registry
+        .put("b", with(env("b", 1, 0), |b| b.max_request_bytes = 200), build)
+        .unwrap();
+    assert_eq!(registry.max_request_bytes(), 200);
+    registry
+        .put("b", with(env("b", 2, 1), |b| b.max_request_bytes = 50), build)
+        .unwrap();
+    assert_eq!(registry.max_request_bytes(), 100);
+    registry.delete("a", 2, false).unwrap();
+    assert_eq!(registry.max_request_bytes(), 50);
+    registry.reconcile(vec![], build).unwrap();
+    assert_eq!(
+        registry.max_request_bytes(),
+        kin_contract::config::DEFAULT_MAX_REQUEST_BYTES
+    );
+}
