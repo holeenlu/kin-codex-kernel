@@ -74,19 +74,26 @@ fn expand(
     gzip: bool,
     copy: Option<(Bytes, usize, usize, usize)>,
     limit: usize,
+    mut reserve: impl FnMut(usize) -> Result<(), KernelError>,
 ) -> Result<Bytes, KernelError> {
     let copied = copy.as_ref().map_or(0, |(_, _, _, n)| *n);
     let remaining = limit.checked_sub(copied).ok_or(KernelError::BodyTooLarge)?;
     let literal = if gzip {
         let mut decoder = GzDecoder::new(&data[..]);
         let mut buf = Vec::new();
-        decoder
-            .by_ref()
-            .take((remaining as u64).saturating_add(1))
-            .read_to_end(&mut buf)
-            .map_err(|_| invalid())?;
-        if buf.len() > remaining {
-            return Err(KernelError::BodyTooLarge);
+        let mut block = [0_u8; 16 * 1024];
+        loop {
+            let n = decoder.read(&mut block).map_err(|_| invalid())?;
+            if n == 0 {
+                break;
+            }
+            let size = buf
+                .len()
+                .checked_add(n)
+                .filter(|n| *n <= remaining)
+                .ok_or(KernelError::BodyTooLarge)?;
+            reserve(data.len().saturating_add(size))?;
+            buf.extend_from_slice(&block[..n]);
         }
         if !decoder.into_inner().is_empty() {
             return Err(invalid());
@@ -107,7 +114,9 @@ fn expand(
     if insert > literal.len() {
         return Err(invalid());
     }
-    let mut raw = Vec::with_capacity(literal.len() + count);
+    let output_size = literal.len() + count;
+    reserve(literal.len().saturating_add(output_size))?;
+    let mut raw = Vec::with_capacity(output_size);
     raw.extend_from_slice(&literal[..insert]);
     raw.extend_from_slice(source);
     raw.extend_from_slice(&literal[insert..]);
@@ -183,18 +192,9 @@ async fn dispatch(
         }
         _ => return Err(invalid().into()),
     };
-    let received = data.len();
-    if gzip || copy.is_some() {
-        let expanded = if gzip {
-            limit
-        } else {
-            received.saturating_add(copy.as_ref().map_or(0, |c| c.3))
-        };
-        admission.reserve(received.saturating_add(expanded))?;
-    }
     let (raw, admission) = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        expand(data, gzip, copy, limit).map(|raw| (raw, admission))
+        expand(data, gzip, copy, limit, |size| admission.reserve(size)).map(|raw| (raw, admission))
     })
     .await
     .map_err(|_| invalid())??;
@@ -228,29 +228,58 @@ mod tests {
     }
 
     #[test]
+    fn gzip_reserves_actual_bytes_with_a_large_configured_limit() {
+        let data = Bytes::from(gzip(b"small"));
+        let needed = data.len() + 5;
+        for budget in [needed - 1, needed] {
+            let result = expand(data.clone(), true, None, usize::MAX, |bytes| {
+                if bytes <= budget {
+                    Ok(())
+                } else {
+                    Err(KernelError::KernelBusy)
+                }
+            });
+            if budget == needed {
+                assert_eq!(result.unwrap(), "small");
+            } else {
+                assert_eq!(result.unwrap_err(), KernelError::KernelBusy);
+            }
+        }
+    }
+
+    #[test]
     fn delta_restores_exact_bytes_and_bounds_the_full_envelope() {
         let base = Bytes::from_static(b"old[history]old");
         let copy = Some((base.clone(), 3, 4, 9));
         let literal = Bytes::from(gzip(b"headtail"));
         assert_eq!(
-            expand(literal.clone(), true, copy.clone(), 17).unwrap(),
+            expand(literal.clone(), true, copy.clone(), 17, |_| Ok(())).unwrap(),
             b"head[history]tail"[..]
         );
         assert!(matches!(
-            expand(literal, true, copy, 16),
+            expand(literal, true, copy, 16, |_| Ok(())),
             Err(KernelError::BodyTooLarge)
         ));
-        assert!(expand(Bytes::new(), false, Some((base, usize::MAX, 0, 1)), 99).is_err());
+        assert!(
+            expand(
+                Bytes::new(),
+                false,
+                Some((base, usize::MAX, 0, 1)),
+                99,
+                |_| Ok(())
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn corrupt_or_trailing_gzip_bytes_are_rejected_before_dispatch() {
         let mut data = gzip(b"{}");
         data.push(0);
-        assert!(expand(data.into(), true, None, 16).is_err());
+        assert!(expand(data.into(), true, None, 16, |_| Ok(())).is_err());
         let mut data = gzip(b"{}");
         data.pop();
-        assert!(expand(data.into(), true, None, 16).is_err());
+        assert!(expand(data.into(), true, None, 16, |_| Ok(())).is_err());
     }
 
     #[test]
