@@ -91,6 +91,24 @@ pub enum Outcome {
     Fallback(UpstreamSent),
 }
 
+/// 本次上傳開始前，先前 create 的送達證據。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Attempt {
+    Initial,
+    AfterCacheRejection,
+    AfterClose,
+}
+
+impl Attempt {
+    fn sent_before_upload(self) -> UpstreamSent {
+        match self {
+            Self::Initial => UpstreamSent::No,
+            Self::AfterCacheRejection => UpstreamSent::Yes,
+            Self::AfterClose => UpstreamSent::Unknown,
+        }
+    }
+}
+
 struct Socket {
     conn: Conn,
     buffered: VecDeque<Next>,
@@ -319,43 +337,22 @@ impl WebsocketTransport {
         // - 上游明確拒絕由核心產生的續接 ID（`previous_response_not_found`）：同一條連線補送完整本體。
         // - 上游送來 1009：完整輸入改走 HTTP 一次；其他 Close：與上游核心、官方 CLI 相同，換一條新連線送完整本體。沒有 Close 的斷線、
         //   寫入失敗不重送（`unknown`），交給控制面與客戶端判斷。
-        let mut cache_rejected = false;
-        let mut closed_resent = false;
+        let mut attempt = Attempt::Initial;
         loop {
             if cancel.is_cancelled() {
-                return Err(cancelled(if cache_rejected {
-                    UpstreamSent::Yes
-                } else if closed_resent {
-                    UpstreamSent::Unknown
-                } else {
-                    UpstreamSent::No
-                }));
+                return Err(cancelled(attempt.sent_before_upload()));
             }
             if socket.max_message.is_some_and(|limit| message.len() > limit) {
-                if cache_rejected || closed_resent {
-                    return Err(policy.rejection(
-                        true,
-                        if cache_rejected {
-                            UpstreamSent::Yes
-                        } else {
-                            UpstreamSent::Unknown
-                        },
-                    ));
+                if attempt != Attempt::Initial {
+                    return Err(policy.rejection(true, attempt.sent_before_upload()));
                 }
                 return fallback_or_reject("websocket_message_too_large", true);
             }
             // 握手完成或上輪回覆後已排隊的資料，不能作為本次 create 的拒絕證據。
             if next_frame(&mut socket.conn).now_or_never().is_some() {
-                let sent = if cache_rejected {
-                    UpstreamSent::Yes
-                } else if closed_resent {
-                    UpstreamSent::Unknown
-                } else {
-                    UpstreamSent::No
-                };
                 return Err(KernelError::UpstreamTransport {
                     message: "websocket unavailable before upload".to_owned(),
-                    sent,
+                    sent: attempt.sent_before_upload(),
                 });
             }
             timing.update(|f| {
@@ -381,14 +378,14 @@ impl WebsocketTransport {
                     Ok(Next::Text(t))=>t,
                     Ok(Next::Oversized) => {
                         timing.update(|f| f.fallback = Some("websocket_message_too_large"));
-                        if policy.full() && !closed_resent && !cache_rejected {
+                        if policy.full() && attempt == Attempt::Initial {
                             return Ok(Outcome::Fallback(UpstreamSent::Yes));
                         }
-                        let sent = if closed_resent { UpstreamSent::Unknown } else { UpstreamSent::Yes };
+                        let sent = if attempt == Attempt::AfterClose { UpstreamSent::Unknown } else { UpstreamSent::Yes };
                         return Err(policy.rejection(true, sent));
                     }
-                    Ok(Next::Closed) if policy.full() && !closed_resent && !cache_rejected => {
-                        closed_resent = true;
+                    Ok(Next::Closed) if policy.full() && attempt == Attempt::Initial => {
+                        attempt = Attempt::AfterClose;
                         drop(socket); // 先歸還已關閉連線持有的代理名額。
                         socket = match self.connect_with_retry(&headers, cancel, timing, UpstreamSent::Unknown).await? {
                             Ok(fresh) => fresh,
@@ -407,7 +404,7 @@ impl WebsocketTransport {
                 }
             };
             if upload_complete && mode == "incremental" && previous_missing(&first) {
-                cache_rejected = true;
+                attempt = Attempt::AfterCacheRejection;
                 mode = "full_replay";
                 message = create_message(body);
                 timing.update(|f| {
@@ -1174,6 +1171,17 @@ fn authority(url: &str) -> io::Result<(String, u16)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pre_upload_errors_report_the_previous_attempts_delivery_evidence() {
+        for (attempt, sent) in [
+            (Attempt::Initial, UpstreamSent::No),
+            (Attempt::AfterCacheRejection, UpstreamSent::Yes),
+            (Attempt::AfterClose, UpstreamSent::Unknown),
+        ] {
+            assert_eq!(attempt.sent_before_upload(), sent);
+        }
+    }
 
     #[test]
     fn the_create_message_puts_type_first_and_keeps_the_body_order() {
