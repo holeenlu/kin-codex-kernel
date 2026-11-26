@@ -147,5 +147,5 @@
 - 兩種 ABI 的程序設定都可指定 `ingress_limits`。預設 `requests=128`、`body_mib=256`、`images=4`，三項均須為正整數。業務路由在讀本體前取得名額，圖片另占圖片名額，兩種名額都保留至回應釋放。入口以 KiB 計算本體預算；JSON 解析、TLS、回應與編解碼另需記憶體。容量拒絕回 `503 kernel_busy` 與 `x-kin-upstream-sent: 0`。健康、取消與對帳保留獨立入口。
 - `ws_limits.proxy_retries_per_second` 預設為 8，0 關閉預算。同程序相同代理設定共用一秒滑動視窗，額外握手及故障後改走 HTTP 各耗一次。預算耗盡回 `503 proxy_retry_budget` 及 `Retry-After: 1`。控制面跨程序的重派仍須共用出口預算。帳號操作等候 HTTP 標頭及每一塊本體均遵循 `ws_limits.read_idle_ms`。
 - 條件式全量對帳先讀 `GET /internal/v1/accounts` 的 `registry_revision`，再讀控制面的權威清單，將版本原樣放進對帳本體的 `expected_registry_revision`。期間若有增量命令、另一份對帳或程序重啟，核心回 `409 generation_conflict`。此時重新讀版本及權威清單。省略條件的既有呼叫仍按原契約執行。新程序到 `registry_state=ready` 才可接單。
-- 共享核心在換票及匯入期間持有憑據旁的 `.writer.lock`。同一憑據的所有寫入者必須使用同一檔案路徑及支援檔案鎖的檔案系統；舊版本或外部程式交接須先排空。健康欄位 `credential_writeback_pending` 與錯誤日誌事件 `credential_writeback_pending` 表示新票仍在記憶體待補寫。背景每輪優先補寫已啟用帳號；交接前應等此欄位回到 false。上游已換票而核心在收到或保存新票前中止，仍可能需要重新授權。
+- 共享核心在換票及匯入期間持有憑據旁的 `.writer.lock`。同一憑據的所有寫入者必須使用同一檔案路徑及支援檔案鎖的檔案系統；舊版本或外部程式交接須先排空。健康欄位 `credential_writeback_pending` 與錯誤日誌事件 `credential_writeback_pending` 表示新票仍在記憶體待補寫。背景每輪優先補寫已啟用帳號；交接前應確認在途工作已排空、憑據未在刷新，且此欄位已回到 false。上游已換票而核心在收到或保存新票前中止，仍可能需要重新授權。
 - 固定 socket 路徑的核心在綁定到清理期間持有相鄰的 `.lock`；鎖檔會保留供下次啟動使用。首次從未使用此鎖的版本升級，先等舊程序完整退出。若要重疊更新，使用獨立 socket，待新分片就緒才切流，並確保帳號寫入權已交接。

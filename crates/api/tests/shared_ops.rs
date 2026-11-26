@@ -717,3 +717,48 @@ async fn saturated_ingress_rejects_before_reading_and_keeps_health_available() {
     let response = app.oneshot(request(Body::from("invalid json"))).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn a_failed_writeback_repairs_without_another_token_exchange() {
+    let (base, fake) = start_fake().await;
+    let (dir, path) = setup();
+    let app = kernel(&base);
+    reconcile(&app, vec![account("a", &path, &json!({}))]).await;
+    fake.plan.lock().unwrap().push_back((
+        350,
+        200,
+        json!({
+            "refresh_token": "rotated", "access_token": access_token(now_secs() + 7200)
+        }),
+    ));
+    let uri = "/internal/v1/accounts/a/ops/refresh";
+    let task = {
+        let app = app.clone();
+        tokio::spawn(async move { call(&app, "POST", uri, &json!({})).await })
+    };
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while fake.token_calls.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    let backup = dir.path().join("saved.json");
+    std::fs::rename(&path, &backup).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    assert_eq!(task.await.unwrap().0, StatusCode::BAD_GATEWAY);
+    std::fs::remove_dir(&path).unwrap();
+    std::fs::rename(backup, &path).unwrap();
+    let health = "/internal/v1/accounts/a/health";
+    assert_eq!(
+        call(&app, "GET", health, &Value::Null).await.1["credential_writeback_pending"],
+        true
+    );
+    assert_eq!(call(&app, "POST", uri, &json!({})).await.0, StatusCode::OK);
+    assert_eq!(
+        call(&app, "GET", health, &Value::Null).await.1["credential_writeback_pending"],
+        false
+    );
+    assert_eq!(stored_refresh_token(&path), "rotated");
+    assert_eq!(fake.token_calls.load(Ordering::SeqCst), 1);
+}

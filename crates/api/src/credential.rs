@@ -172,11 +172,17 @@ impl AccountAuth {
             .create(true)
             .truncate(false)
             .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
             .open(name)
             .await
             .map_err(io)?
             .into_std()
             .await;
+        if !file.metadata().map_err(io)?.is_file() {
+            return Err(KernelError::InvalidCredential(
+                "invalid credential writer lock file".to_owned(),
+            ));
+        }
         file.try_lock().map_err(|err| match err {
             std::fs::TryLockError::WouldBlock => KernelError::KernelBusy,
             std::fs::TryLockError::Error(err) => io(err),
@@ -708,8 +714,8 @@ pub(crate) async fn import(
     credential: serde_json::Map<String, serde_json::Value>,
     expected: u64,
 ) -> Result<u64, KernelError> {
-    let _owner = auth.own_writer(&env.credential_path).await?;
     let _write = auth.write.lock().await;
+    let _owner = auth.own_writer(&env.credential_path).await?;
     let generation = stored::import(&env.credential_path, credential, expected).await?;
     auth.reset();
     tracing::info!(account = %env.account_ref, credential_generation = generation, "credential imported");
