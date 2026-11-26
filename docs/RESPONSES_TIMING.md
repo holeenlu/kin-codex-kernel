@@ -43,3 +43,5 @@ HTTP 推理或 WS 握手回 429 時，核心另行保留額度與點數標頭，
 ABI 1 的 health 欄位及 describe 能力 `uds_packed_v1` 允許閘道向 `POST /internal/v1/codex/responses/packed` 傳送位元組。端點沿用 internal token，接受 identity 或 gzip。傳輸大小及完整還原後的 JSON 都受該槽的請求上限約束。
 
 閘道可用 `x-kin-uds-store: 1` 請求暫存本輪完整 JSON。成功回應的 `x-kin-uds-base` 是其 SHA-256。續接時帶回該值及 `x-kin-uds-copy`，後者依次為基底起點、解壓後本輪資料的插入位置、複製長度，三個十進位位元組數以逗號分隔。核心先將該區段插回本輪資料，再進入既有推理端點的處理流程。核心最多保留 32 MiB、64 份基底，可在五分鐘內重用。程序重啟或基底被淘汰時，端點在推理前回傳 409、`x-kin-uds-miss: 1` 及 `x-kin-upstream-sent: 0`，允許閘道完整傳送一次。`x-kin-uds-received` 是核心讀到的本機請求體大小。舊閘道仍可使用原端點。
+
+每個單帳號槽最多同時接收及解碼 4 筆 packed 請求。名額用盡時，核心在讀取本體前回 429 `account_busy` 與 `x-kin-upstream-sent: 0`。完整讀入本體後，成功、基底缺失及解碼失敗的回應都帶 `x-kin-uds-received`。

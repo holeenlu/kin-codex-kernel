@@ -8,3 +8,10 @@ pub const LEGACY_INTERNAL_TOKEN: &str = "x-internal-token";
 pub const UPSTREAM_SENT: &str = "x-kin-upstream-sent";
 /// 僅限核心到控制面。起始標頭是當時已知欄位，正常讀完時 trailer 補齊本輪計時。
 pub const TURN_TIMING: &str = "x-tap-turn-timing";
+
+/// ABI 1 本機壓縮與增量傳輸使用的標頭。
+pub const UDS_BASE: &str = "x-kin-uds-base";
+pub const UDS_MISS: &str = "x-kin-uds-miss";
+pub const UDS_COPY: &str = "x-kin-uds-copy";
+pub const UDS_STORE: &str = "x-kin-uds-store";
+pub const UDS_RECEIVED: &str = "x-kin-uds-received";

@@ -1,7 +1,7 @@
 //! ABI 1 的本機傳輸。完整解碼並套用原大小上限後才可進入推理路徑。
 use std::collections::VecDeque;
 use std::io::Read;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use axum::body::{Body, Bytes, to_bytes};
@@ -10,21 +10,36 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use flate2::bufread::GzDecoder;
 use kin_contract::error::KernelError;
+use kin_contract::headers::{UDS_BASE, UDS_COPY, UDS_MISS, UDS_RECEIVED, UDS_STORE, UPSTREAM_SENT};
+use kin_contract::send::UpstreamSent;
 use sha2::{Digest, Sha256};
+use tokio::sync::Semaphore;
 
 use crate::{AppState, error::ApiError, routes};
 
 const BUDGET: usize = 32 << 20;
 const TTL: Duration = Duration::from_secs(300);
-const BASE: &str = "x-kin-uds-base";
-const MISS: &str = "x-kin-uds-miss";
+// 同時緩衝與還原的上限按槽套用。推理與串流不占用解碼名額。
+const DECODE_SLOTS: usize = 4;
 
-#[derive(Debug, Default)]
-pub(crate) struct Bases(Mutex<VecDeque<(Instant, String, Bytes)>>);
+#[derive(Debug)]
+pub(crate) struct Bases {
+    entries: Mutex<VecDeque<(Instant, String, Bytes)>>,
+    slots: Arc<Semaphore>,
+}
+
+impl Default for Bases {
+    fn default() -> Self {
+        Self {
+            entries: Mutex::default(),
+            slots: Arc::new(Semaphore::new(DECODE_SLOTS)),
+        }
+    }
+}
 
 impl Bases {
     fn get(&self, key: &str) -> Option<Bytes> {
-        let mut entries = self.0.lock().ok()?;
+        let mut entries = self.entries.lock().ok()?;
         entries.retain(|(at, _, _)| at.elapsed() < TTL);
         entries
             .iter()
@@ -38,7 +53,7 @@ impl Bases {
         }
         let digest = Sha256::digest(&raw);
         let key = format!("{:x}", Bytes::copy_from_slice(&digest));
-        let mut entries = self.0.lock().ok()?;
+        let mut entries = self.entries.lock().ok()?;
         entries.retain(|(at, id, _)| at.elapsed() < TTL && id != &key);
         let mut size = raw.len() + entries.iter().map(|(_, _, v)| v.len()).sum::<usize>();
         while size > BUDGET || entries.len() >= 64 {
@@ -67,7 +82,7 @@ fn expand(
         let mut buf = Vec::new();
         decoder
             .by_ref()
-            .take(remaining as u64 + 1)
+            .take((remaining as u64).saturating_add(1))
             .read_to_end(&mut buf)
             .map_err(|_| invalid())?;
         if buf.len() > remaining {
@@ -104,16 +119,37 @@ pub(crate) async fn responses(
     headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
+    let permit = Arc::clone(&state.packed().slots)
+        .try_acquire_owned()
+        .map_err(|_| KernelError::AccountBusy(state.label().to_owned()))?;
     let limit = state.body_limit();
     let data = to_bytes(body, limit)
         .await
         .map_err(|_| KernelError::BodyTooLarge)?;
+    let received = data.len();
+    let mut response = match dispatch(state, headers, data, permit).await {
+        Ok(response) => response,
+        Err(error) => error.into_response(),
+    };
+    response
+        .headers_mut()
+        .insert(UDS_RECEIVED, HeaderValue::from(received as u64));
+    Ok(response)
+}
+
+async fn dispatch(
+    state: AppState,
+    headers: HeaderMap,
+    data: Bytes,
+    permit: tokio::sync::OwnedSemaphorePermit,
+) -> Result<Response, ApiError> {
+    let limit = state.body_limit();
     let gzip = match headers.get("content-encoding").map(HeaderValue::as_bytes) {
         None | Some(b"identity") => false,
         Some(b"gzip") => true,
         _ => return Err(invalid().into()),
     };
-    let copy = match (headers.get(BASE), headers.get("x-kin-uds-copy")) {
+    let copy = match (headers.get(UDS_BASE), headers.get(UDS_COPY)) {
         (None, None) => None,
         (Some(key), Some(range)) => {
             let key = key.to_str().map_err(|_| invalid())?;
@@ -131,7 +167,7 @@ pub(crate) async fn responses(
             let Some(base) = state.packed().get(key) else {
                 return Ok((
                     StatusCode::CONFLICT,
-                    [(MISS, "1"), ("x-kin-upstream-sent", "0")],
+                    [(UDS_MISS, "1"), (UPSTREAM_SENT, UpstreamSent::No.header_value())],
                     "local base unavailable",
                 )
                     .into_response());
@@ -140,26 +176,25 @@ pub(crate) async fn responses(
         }
         _ => return Err(invalid().into()),
     };
-    let received = data.len();
-    let raw = tokio::task::spawn_blocking(move || expand(data, gzip, copy, limit))
-        .await
-        .map_err(|_| invalid())??;
-    let cache = (raw.len() <= BUDGET && headers.get("x-kin-uds-store").is_some_and(|v| v == "1"))
-        .then(|| raw.clone());
+    let raw = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        expand(data, gzip, copy, limit)
+    })
+    .await
+    .map_err(|_| invalid())??;
+    let cache =
+        (raw.len() <= BUDGET && headers.get(UDS_STORE).is_some_and(|v| v == "1")).then(|| raw.clone());
     let mut response = match routes::respond(state.clone(), raw).await {
         Ok(response) => response,
         Err(error) => error.into_response(),
     };
-    response
-        .headers_mut()
-        .insert("x-kin-uds-received", HeaderValue::from(received as u64));
-    response.headers_mut().remove(MISS);
-    response.headers_mut().remove(BASE);
+    response.headers_mut().remove(UDS_MISS);
+    response.headers_mut().remove(UDS_BASE);
     if response.status().is_success()
         && let Some(bytes) = cache
         && let Ok(Some(key)) = tokio::task::spawn_blocking(move || state.packed().store(bytes)).await
     {
-        response.headers_mut().insert(BASE, key);
+        response.headers_mut().insert(UDS_BASE, key);
     }
     Ok(response)
 }

@@ -285,3 +285,37 @@ async fn bind_preserves_regular_files_and_symlinks() {
     assert!(link.is_symlink());
     assert_eq!(std::fs::read(file).unwrap(), b"keep");
 }
+
+#[tokio::test]
+async fn packed_limits_ingress_and_receipts_include_misses() {
+    use kin_contract::headers::{UDS_BASE, UDS_COPY, UDS_MISS, UDS_RECEIVED};
+    const PATH: &str = "/internal/v1/codex/responses/packed";
+    let app = app(1024);
+    let mut pending = Vec::new();
+    for _ in 0..4 {
+        let body = Body::from_stream(futures_util::stream::pending::<
+            Result<axum::body::Bytes, std::io::Error>,
+        >());
+        let mut request = Box::pin(app.clone().oneshot(authed("POST", PATH, body)));
+        assert!(
+            request
+                .as_mut()
+                .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()))
+                .is_pending()
+        );
+        pending.push(request);
+    }
+    let (status, headers, body) = call(app.clone(), authed("POST", PATH, Body::empty())).await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(body["error"]["code"], "account_busy");
+    assert_eq!(headers[UPSTREAM_SENT], "0");
+    drop(pending);
+    let mut miss = authed("POST", PATH, Body::from("abc"));
+    miss.headers_mut().insert(UDS_BASE, "absent".parse().unwrap());
+    miss.headers_mut().insert(UDS_COPY, "0,0,1".parse().unwrap());
+    let (status, headers, _) = call(app, miss).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(headers[UDS_MISS], "1");
+    assert_eq!(headers[UDS_RECEIVED], "3");
+    assert_eq!(headers[UPSTREAM_SENT], "0");
+}
