@@ -3,8 +3,8 @@
 //! - 檔案格式沿用 `{accounts: [{access_token, refresh_token, id_token, expires_at, chatgpt_account_id, ...}]}`，
 //!   使用第一筆有 access token 的帳號（都沒有時用第一筆，以便換票）；頂層另加 `kin_credential_generation`
 //!   （單調遞增）。寫回時只改那一列，保留其他列與欄位。
-//! - **提交時比對：** 刷新結果寫回前重讀檔案，代次、帳號唯一鍵或 refresh token 任一與刷新開始時不同，
-//!   就放棄寫入。刷新途中被匯入的新帳號不會被晚到的刷新結果蓋回去。
+//! - **提交時比對：** 刷新結果寫回前重讀檔案，帳號唯一鍵或 refresh token 與刷新開始時不同，
+//!   就放棄寫入。若只有代次改變，仍提交輪換後的 token。
 //! - 寫入：同目錄暫存檔、fsync、rename、fsync 目錄，權限 0600。`expires_at` 與 vm2api 相同用 Unix 毫秒。
 //!
 //! JWT 只解碼不驗簽：用來判斷到期時間與帳號身分，不是授權依據。
@@ -229,10 +229,31 @@ fn parse(raw: &[u8]) -> Result<Stored, KernelError> {
     })
 }
 
+/// 帳號清單只需頂層代次。略過帳號陣列的反序列化與 JWT 解碼。
+pub async fn read_generation(path: &Path) -> Result<Option<u64>, KernelError> {
+    #[derive(serde::Deserialize)]
+    struct Generation {
+        #[serde(default)]
+        kin_credential_generation: Value,
+    }
+    let Some(bytes) = read_bytes(path).await? else {
+        return Ok(None);
+    };
+    let generation: Generation =
+        serde_json::from_slice(&bytes).map_err(|err| KernelError::InvalidCredential(err.to_string()))?;
+    Ok(Some(
+        generation.kin_credential_generation.as_u64().unwrap_or_default(),
+    ))
+}
+
 /// 讀憑據檔；檔案不存在時回 `None`。
 pub async fn read(path: &Path) -> Result<Option<Stored>, KernelError> {
+    read_bytes(path).await?.map(|raw| parse(&raw)).transpose()
+}
+
+async fn read_bytes(path: &Path) -> Result<Option<Vec<u8>>, KernelError> {
     match tokio::fs::read(path).await {
-        Ok(raw) => parse(&raw).map(Some),
+        Ok(raw) => Ok(Some(raw)),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(err) => Err(KernelError::InvalidCredential(format!(
             "read credential file: {err}"

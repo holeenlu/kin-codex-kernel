@@ -464,6 +464,34 @@ async fn a_cancelled_operation_reports_an_unknown_send_state() {
 }
 
 #[tokio::test]
+async fn health_reports_invalid_credentials_and_lists_legacy_generations() {
+    let (base, _) = start_fake().await;
+    let app = kernel(&base);
+    let (dir, path) = setup();
+    let legacy = dir.path().join("legacy.json");
+    std::fs::write(&legacy, r#"{"accounts":[]}"#).unwrap();
+    reconcile(
+        &app,
+        vec![account("b", &legacy, &json!({})), account("a", &path, &json!({}))],
+    )
+    .await;
+    let (status, list) = call(&app, "GET", "/internal/v1/accounts", &json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["accounts"][0]["ref"], "a");
+    assert_eq!(list["accounts"][0]["credential_generation"], 1);
+    assert_eq!(list["accounts"][1]["credential_generation"], 0);
+
+    std::fs::write(&path, "broken").unwrap();
+    let (status, health) = call(&app, "GET", "/internal/v1/accounts/a/health", &json!({})).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(health["error"]["code"], "invalid_json");
+    std::fs::remove_file(&path).unwrap();
+    let (status, health) = call(&app, "GET", "/internal/v1/accounts/a/health", &json!({})).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(health["credential"], "missing");
+}
+
+#[tokio::test]
 async fn oversized_refresh_success_leaves_the_stored_credential_untouched() {
     let (base, fake) = start_fake().await;
     let app = kernel(&base);

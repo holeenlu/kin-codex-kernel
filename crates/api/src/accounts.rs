@@ -6,6 +6,7 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post, put};
+use futures_util::{StreamExt, stream};
 use kin_contract::config::SharedConfig;
 use kin_contract::envelope::AccountBinding;
 use kin_contract::error::KernelError;
@@ -80,16 +81,18 @@ fn build(config: &SharedConfig) -> impl Fn(&AccountEnv) -> Result<HttpUpstream, 
 
 async fn list(State(state): State<AppState>) -> Result<Response, ApiError> {
     let (registry, _) = registry(&state)?;
-    let (registry_state, rows) = registry.list_with_paths();
-    let mut accounts = Vec::with_capacity(rows.len());
-    for mut row in rows {
-        if let Some(path) = row.credential_path
-            && let Ok(Some(current)) = stored::read(&path).await
-        {
-            row.summary.credential_generation = Some(current.generation);
-        }
-        accounts.push(row.summary);
-    }
+    let (registry_state, entries) = registry.list_with_paths();
+    // 保留排序及個別帳號代次缺失的 ABI 行為，限制同時開啟的憑據檔數。
+    let accounts = stream::iter(entries)
+        .map(|mut row| async move {
+            if let Some(path) = row.credential_path {
+                row.summary.credential_generation = stored::read_generation(&path).await.ok().flatten();
+            }
+            row.summary
+        })
+        .buffered(8)
+        .collect()
+        .await;
     Ok(Json(AccountList {
         registry_state,
         accounts,
@@ -158,7 +161,7 @@ async fn account_health(
     let (registry, _) = registry(&state)?;
     let view = registry.view(&account_ref)?;
     // 不回傳任何秘密：只有狀態、代次與到期判斷。
-    let current = stored::read(&view.env.credential_path).await.ok().flatten();
+    let current = stored::read(&view.env.credential_path).await?;
     let credential = view.ext().status(current.as_ref());
     let proxy_ok = view.runtime.proxy_ok().await;
     let (http, websocket) = view.runtime.breakers();
