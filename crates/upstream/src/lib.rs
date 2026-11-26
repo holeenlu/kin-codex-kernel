@@ -275,6 +275,23 @@ impl HttpUpstream {
         result.map_err(|err| transport_error(&err))
     }
 
+    async fn send_with_headers_deadline(
+        &self,
+        request: reqwest::RequestBuilder,
+        cancel: &CancellationToken,
+    ) -> Result<reqwest::Response, KernelError> {
+        let send = self.send_http(request, cancel);
+        match self.read_idle {
+            Some(d) => tokio::time::timeout(d, send)
+                .await
+                .map_err(|_| KernelError::UpstreamTransport {
+                    message: "upstream HTTP headers timeout".to_owned(),
+                    sent: UpstreamSent::Unknown,
+                })?,
+            None => send.await,
+        }
+    }
+
     /// 即使帳號不再收到請求，仍應釋放到期的閒置 socket 與代理名額。
     pub fn reap_idle(&self) {
         self.websocket.reap_idle();
@@ -464,17 +481,10 @@ impl HttpUpstream {
         ) {
             request = request.header(name, value);
         }
-        let send = self.send_http(request.body(body), cancel);
-        let response = match self.read_idle {
-            Some(d) => tokio::time::timeout(d, send)
-                .await
-                .map_err(|_| KernelError::UpstreamTransport {
-                    message: "upstream HTTP headers timeout".to_owned(),
-                    sent: UpstreamSent::Unknown,
-                })?,
-            None => send.await,
-        }
-        .map_err(|e| http_fallback_error(e, prior_send))?;
+        let response = self
+            .send_with_headers_deadline(request.body(body), cancel)
+            .await
+            .map_err(|e| http_fallback_error(e, prior_send))?;
         timing.update(|f| {
             f.http_headers_ms = Some(timing.ms());
             f.sent = Some("1");

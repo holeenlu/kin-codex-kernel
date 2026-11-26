@@ -666,6 +666,24 @@ async fn refresh_classifies_an_error_as_soon_as_the_excerpt_is_full() {
 }
 
 #[tokio::test]
+async fn stalled_operation_body_expires_without_replay() {
+    let (base, _) = start_fake().await;
+    let (_dir, path) = setup();
+    let app = kernel_with(&base, &json!({"ws_limits": {"read_idle_ms": 150}}));
+    reconcile(&app, vec![account("a", &path, &json!({}))]).await;
+    let request = Request::post("/internal/v1/accounts/a/ops/usage")
+        .header(INTERNAL_TOKEN, TOKEN)
+        .body(Body::from(r#"{"env_generation":1}"#))
+        .unwrap();
+    let response = tokio::time::timeout(Duration::from_secs(3), app.oneshot(request))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(response.headers()["x-kin-upstream-sent"], "unknown");
+}
+
+#[tokio::test]
 async fn saturated_ingress_rejects_before_reading_and_keeps_health_available() {
     let app = kernel_with("http://127.0.0.1", &json!({"ingress_limits":{"requests":1}}));
     let (started, waiting) = tokio::sync::oneshot::channel();

@@ -252,7 +252,7 @@ impl HttpUpstream {
             Op::ImagesGenerate => json_post("images/generations")?,
             Op::ImagesEdit => json_post("images/edits")?,
         };
-        let response = self.send_http(request, cancel).await?;
+        let response = self.send_with_headers_deadline(request, cancel).await?;
         let status = response.status().as_u16();
         let passthrough = response
             .headers()
@@ -267,7 +267,7 @@ impl HttpUpstream {
         };
         let limit = if op.images() { IMAGE_BODY_LIMIT } else { BODY_LIMIT };
         let mut answer = Vec::new();
-        let mut stream = response.bytes_stream();
+        let mut stream = super::http_chunks(response, self.read_idle);
         loop {
             let chunk = tokio::select! {
                 chunk = stream.next() => chunk,
