@@ -161,3 +161,7 @@ CPR main 從 `9469260dbae9fd31cf6e1233ca48f76dbfc116fb` 對齊至 `20d04ae57abf6
 ### 2026-11-26 下午 main 雙來源同步
 
 CPR main 從 `20d04ae57abf61ffc7c176eb73730577aaf1b0af` 對齊至 `3da33389085386b790102ba4f86a8f4476a13c02`（8 筆），官方 Codex main 從 `5148e3d6421c3adb9991b712b85f973ac33b9e50` 對齊至 `af71942309704997f4bdc86c020717646423c080`（8 筆）。CPR 調整 GenAI 串流及 Antigravity 搜尋轉譯，官方調整執行器外掛探索與終端顯示。Kin 的出站契約沿用原實錄。適用範圍與核對依據見[逐提交處置](docs/sync/2026-11-26-af719423-main.md)。
+
+### 2026-11-27 main 雙來源同步
+
+CPR main 從 `3da33389085386b790102ba4f86a8f4476a13c02` 對齊至 `8c742bd5939ddcd14d8e71da1f1bd30f968b892b`（10 筆），官方 Codex main 從 `af71942309704997f4bdc86c020717646423c080` 對齊至 `b9e830fb986ae478ce59c3c97408bdfa1bd5ddab`（23 筆）。CPR 的原生協定路由、Antigravity 預熱與重連，以及官方的 Guardian 審查、工作區輸入與終端顯示均無需移植。見[逐提交處置與驗證](docs/sync/2026-11-27-main.md)。
