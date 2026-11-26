@@ -145,10 +145,10 @@ pub(crate) async fn respond(state: AppState, raw: Bytes) -> Result<Response, Api
         ApiError(err)
     };
     // 單帳號模式每次重讀、不自行刷新；共享模式在這裡做請求前的刷新與 401 復原。
+    let inflight = state.register(envelope.request_id.as_deref(), target.cancel_parent())?;
     let credential = credential::for_request(&target, &envelope)
         .await
         .map_err(failed)?;
-    let inflight = state.register(envelope.request_id.as_deref(), target.cancel_parent());
     let timing = TurnTiming::default();
     let receipt = Receipt {
         timing: timing.clone(),

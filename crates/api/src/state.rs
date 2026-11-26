@@ -201,31 +201,38 @@ impl AppState {
     }
 
     /// 登記一個在途請求。回傳的守衛在請求結束（含串流被丟棄）時自動移除登記。
-    pub(crate) fn register(&self, request_id: Option<&str>, parent: Option<CancellationToken>) -> Inflight {
+    pub(crate) fn register(
+        &self,
+        request_id: Option<&str>,
+        parent: Option<CancellationToken>,
+    ) -> Result<Inflight, KernelError> {
         let token = parent.unwrap_or_default();
         let seq = self.inner.next_seq.fetch_add(1, Ordering::Relaxed);
         let id = request_id
             .map(str::trim)
             .filter(|id| !id.is_empty())
             .map(str::to_owned);
-        if let Some(id) = &id
-            && let Ok(mut inflight) = self.inner.inflight.lock()
-        {
-            inflight.insert(
-                id.clone(),
-                Entry {
-                    seq,
-                    token: token.clone(),
-                    interrupt: None,
-                },
-            );
+        if let Some(id) = &id {
+            let mut inflight = self
+                .inner
+                .inflight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let std::collections::hash_map::Entry::Vacant(slot) = inflight.entry(id.clone()) else {
+                return Err(KernelError::RequestIdInUse);
+            };
+            slot.insert(Entry {
+                seq,
+                token: token.clone(),
+                interrupt: None,
+            });
         }
-        Inflight {
+        Ok(Inflight {
             state: self.clone(),
             id,
             seq,
             token,
-        }
+        })
     }
 
     pub(crate) fn interrupt(&self, id: &str) -> Option<kin_upstream::interrupt::InterruptHandle> {
@@ -239,13 +246,13 @@ impl AppState {
             .inflight
             .lock()
             .ok()
-            .and_then(|mut inflight| inflight.remove(request_id));
+            .and_then(|inflight| inflight.get(request_id).map(|entry| entry.token.clone()));
         match token {
-            Some(entry) => {
-                entry.token.cancel();
+            Some(token) if !token.is_cancelled() => {
+                token.cancel();
                 true
             }
-            None => false,
+            _ => false,
         }
     }
 }

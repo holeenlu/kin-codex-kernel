@@ -48,6 +48,8 @@
 - 否則立刻停止接新請求（新請求回 `409 account_disabled`），留下帶代次的墓碑；在途請求結束後移除。
 - 回 `DeleteAck {ok, ref, tombstone_generation, inflight}`；`inflight > 0` 表示仍在排空。
 
+兩種 ABI 的呼叫端每次發送均使用新的 request_id。相同 ID 在原請求結束前回 409；取消只中止原登記，釋放後再取消回 cancelled: false。控制面不得將已完成的 ID 配給另一筆工作。
+
 ## 推理信封
 
 ```json
@@ -100,6 +102,7 @@
 | `account_generation_mismatch`、`generation_conflict`、`stale_generation` | 409 | 0 |
 | `proxy_unavailable` | 502 | 0（連線前失敗）或 unknown（連線後失敗） |
 | `reauth_required` | 401 | 0 |
+| `request_id_in_use`（與任何在途推理或帳號操作重複） | 409 | 0 |
 | `account_busy` | 429 | 0 |
 | `body_too_large` | 413 | 0 |
 | `refresh_failed`（`ops/refresh` 暫時失敗） | 502 | 0（未連上）或 unknown；unknown 時不得再要求換票，改以帳號健康的憑據代次確認 |

@@ -273,11 +273,11 @@ async fn operation(
     }
     // 帳號操作不算「使用過」，身分沿用這個帳號最近一次推理的身分輸入（帳號環境與自訂 UA）。
     let profile = view.ext().profile();
+    let inflight = state.register(request.request_id.as_deref(), Some(view.cancel_token()))?;
     let credential = credential::prepare(&view.env, &view.runtime, view.ext(), &profile)
         .await
         .inspect_err(|err| view.note_error(err))?;
     // 掛在帳號閘門下：`/cancel` 與 `DELETE ?force=1` 都能中止帳號操作（含已收到回應、讀本體中的）。
-    let inflight = state.register(request.request_id.as_deref(), Some(view.cancel_token()));
     let answered = view
         .runtime
         .operate(

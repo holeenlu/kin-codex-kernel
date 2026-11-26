@@ -89,6 +89,8 @@ pub enum KernelError {
         account_ref: String,
         field: &'static str,
     },
+    #[error("request_id already in flight")]
+    RequestIdInUse,
     /// PUT 的 CAS 前提不成立，或同代次但內容不同。
     #[error("generation conflict")]
     GenerationConflict,
@@ -169,6 +171,7 @@ impl KernelError {
             Self::AccountDisabled(_)
             | Self::AccountGenerationMismatch { .. }
             | Self::AccountIdentityMismatch { .. }
+            | Self::RequestIdInUse
             | Self::GenerationConflict
             | Self::StaleGeneration => 409,
             Self::AccountBusy(_) | Self::WebsocketHandshakeRateLimited { .. } => 429,
@@ -197,6 +200,7 @@ impl KernelError {
             Self::AccountGenerationMismatch { .. } | Self::AccountIdentityMismatch { .. } => {
                 "account_generation_mismatch"
             }
+            Self::RequestIdInUse => "request_id_in_use",
             Self::GenerationConflict => "generation_conflict",
             Self::StaleGeneration => "stale_generation",
             Self::AccountBusy(_) => "account_busy",
@@ -225,6 +229,7 @@ impl KernelError {
             | Self::AccountDisabled(_)
             | Self::AccountGenerationMismatch { .. }
             | Self::AccountIdentityMismatch { .. }
+            | Self::RequestIdInUse
             | Self::GenerationConflict
             | Self::StaleGeneration
             | Self::AccountBusy(_)
@@ -248,6 +253,7 @@ impl KernelError {
             | Self::AccountDisabled(_)
             | Self::AccountGenerationMismatch { .. }
             | Self::AccountIdentityMismatch { .. }
+            | Self::RequestIdInUse
             | Self::GenerationConflict
             | Self::StaleGeneration
             | Self::AccountBusy(_)

@@ -63,6 +63,7 @@ type Plan = Arc<Mutex<VecDeque<(u64, u16, Value)>>>;
 struct Fake {
     plan: Plan,
     token_calls: Arc<AtomicUsize>,
+    admitted: Arc<tokio::sync::Notify>,
 }
 
 async fn token_endpoint(State(fake): State<Fake>) -> Response {
@@ -80,7 +81,8 @@ async fn token_endpoint(State(fake): State<Fake>) -> Response {
 }
 
 /// 標頭先送出、本體永遠不結束的上游：用來測試讀本體途中的取消。
-async fn stalled() -> Response {
+async fn stalled(State(fake): State<Fake>) -> Response {
+    fake.admitted.notify_one();
     let first = stream::once(async { Ok::<_, std::io::Error>(Bytes::from_static(b"{")) });
     let body = Body::from_stream(first.chain(stream::pending()));
     ([("content-type", "application/json")], body).into_response()
@@ -90,6 +92,7 @@ async fn start_fake() -> (String, Fake) {
     let fake = Fake {
         plan: Arc::default(),
         token_calls: Arc::default(),
+        admitted: Arc::default(),
     };
     let app = axum::Router::new()
         .route("/oauth/token", post(token_endpoint))
@@ -310,6 +313,57 @@ async fn a_credential_imported_during_a_refresh_is_not_marked_for_reauthorizatio
     let (_, health) = call(&app, "GET", "/internal/v1/accounts/a/health", &Value::Null).await;
     assert_eq!(health["credential"], "ok", "{health}");
     assert_eq!(stored_refresh_token(&path), "rt-imported");
+}
+
+#[tokio::test]
+async fn duplicate_id_across_accounts_and_routes_preserves_the_first_cancellation() {
+    let (base, fake) = start_fake().await;
+    let (_a, a) = setup();
+    let (_b, b) = setup();
+    let app = kernel(&base);
+    reconcile(
+        &app,
+        vec![account("a", &a, &json!({})), account("b", &b, &json!({}))],
+    )
+    .await;
+    let original = {
+        let app = app.clone();
+        tokio::spawn(async move {
+            call(
+                &app,
+                "POST",
+                "/internal/v1/accounts/a/ops/usage",
+                &json!({"request_id":"same","env_generation":1}),
+            )
+            .await
+        })
+    };
+    tokio::time::timeout(Duration::from_secs(3), fake.admitted.notified())
+        .await
+        .unwrap();
+    let (status, answer) = call(&app, "POST", "/internal/v1/codex/responses",
+        &json!({"request_id":"same","account":{"ref":"b","env_generation":1},"body":{"model":"m","input":[]}})).await;
+    assert_eq!(
+        (status, answer["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("request_id_in_use"))
+    );
+    let cancel = json!({"request_id":"same"});
+    assert_eq!(
+        call(&app, "POST", "/internal/v1/cancel", &cancel).await.1["cancelled"],
+        true
+    );
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), original)
+            .await
+            .unwrap()
+            .unwrap()
+            .0,
+        StatusCode::BAD_GATEWAY
+    );
+    assert_eq!(
+        call(&app, "POST", "/internal/v1/cancel", &cancel).await.1["cancelled"],
+        false
+    );
 }
 
 #[tokio::test]
