@@ -1,40 +1,134 @@
 //! Unix socket 的綁定與服務生命週期。
 
-use std::os::unix::fs::PermissionsExt;
+use std::fs::{File, OpenOptions};
+use std::io::{Error, ErrorKind};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::Path;
+use std::time::Duration;
 
+use axum::Router;
+use hyper::server::conn::http1;
+use hyper_util::{rt::TokioIo, service::TowerToHyperService};
+use socket2::{Domain, SockAddr, Socket, Type};
 use tokio::net::UnixListener;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use crate::routes::router;
 use crate::state::AppState;
 
-/// 綁定 Unix socket：先移除殘留的 socket 檔，綁定後把權限設為 0600。
-/// 路徑是目錄時拒絕，不刪除任何目錄。
-pub fn bind(socket_path: &Path) -> std::io::Result<UnixListener> {
-    if let Some(parent) = socket_path.parent() {
+/// 鎖檔保留在目錄中，所有實例競爭同一個 inode；程序退出時核心會釋放檔案鎖。
+fn locked_bind(path: &Path) -> std::io::Result<(UnixListener, File)> {
+    if path.is_dir() {
+        return Err(Error::new(ErrorKind::AlreadyExists, "socket_path is a directory"));
+    }
+    if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    match std::fs::symlink_metadata(socket_path) {
-        Ok(meta) if meta.file_type().is_dir() => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::AlreadyExists,
-                "socket_path is a directory",
+    let mut lock_path = path.as_os_str().to_owned();
+    lock_path.push(".lock");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(lock_path)?;
+    if !lock.metadata()?.is_file() {
+        return Err(Error::new(ErrorKind::AlreadyExists, "invalid socket lock file"));
+    }
+    lock.try_lock().map_err(|err| match err {
+        std::fs::TryLockError::WouldBlock => {
+            Error::new(ErrorKind::AddrInUse, "kernel socket is owned by another process")
+        }
+        std::fs::TryLockError::Error(err) => err,
+    })?;
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_socket() => {
+            // 升級時可能遇到未使用鎖檔的舊版本，只清除明確拒絕連線的殘留 socket。
+            let probe = Socket::new(Domain::UNIX, Type::STREAM, None)?;
+            probe.set_nonblocking(true)?;
+            match probe.connect(&SockAddr::unix(path)?) {
+                Err(err) if err.kind() == ErrorKind::ConnectionRefused => std::fs::remove_file(path)?,
+                Err(err) => return Err(err),
+                Ok(_) => return Err(Error::new(ErrorKind::AddrInUse, "kernel socket is listening")),
+            }
+        }
+        Ok(_) => {
+            return Err(Error::new(
+                ErrorKind::AlreadyExists,
+                "socket_path is not a socket",
             ));
         }
-        Ok(_) => std::fs::remove_file(socket_path)?,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) if err.kind() == ErrorKind::NotFound => {}
         Err(err) => return Err(err),
     }
-    let listener = UnixListener::bind(socket_path)?;
-    std::fs::set_permissions(socket_path, std::fs::Permissions::from_mode(0o600))?;
-    Ok(listener)
+    let listener = UnixListener::bind(path)?;
+    if let Err(err) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+        std::fs::remove_file(path)?;
+        return Err(err);
+    }
+    Ok((listener, lock))
+}
+
+/// 綁定獨立的 listener；完整服務使用相同的綁定流程並持鎖到排空結束。
+pub fn bind(path: &Path) -> std::io::Result<UnixListener> {
+    Ok(locked_bind(path)?.0)
+}
+
+/// 每條連線都由服務任務持有；排空期限涵蓋讀取中、處理中與被下游背壓卡住的回應。
+async fn serve_connections(listener: UnixListener, app: Router, stop: CancellationToken, drain: Duration) {
+    let mut connections = JoinSet::<()>::new();
+    loop {
+        tokio::select! {
+            biased;
+            () = stop.cancelled() => break,
+            Some(result) = connections.join_next(), if !connections.is_empty() => {
+                if result.is_err() {
+                    tracing::warn!("HTTP connection task stopped unexpectedly");
+                }
+            },
+            accepted = listener.accept() => match accepted {
+                Ok((io, _)) => {
+                    let service = TowerToHyperService::new(app.clone());
+                    let shutdown = stop.clone();
+                    connections.spawn(async move {
+                        let conn = http1::Builder::new().serve_connection(TokioIo::new(io), service);
+                        tokio::pin!(conn);
+                        tokio::select! {
+                            _ = &mut conn => {}
+                            () = shutdown.cancelled() => {
+                                conn.as_mut().graceful_shutdown();
+                                let _ = conn.await;
+                            }
+                        }
+                    });
+                }
+                Err(err) => {
+                    tracing::warn!(error = %err, "socket accept failed");
+                    tokio::select! {
+                        () = stop.cancelled() => break,
+                        () = tokio::time::sleep(Duration::from_secs(1)) => {}
+                    }
+                }
+            }
+        }
+    }
+    drop(listener);
+    if tokio::time::timeout(drain, async { while connections.join_next().await.is_some() {} })
+        .await
+        .is_err()
+    {
+        tracing::warn!(connections = connections.len(), "socket drain deadline reached");
+        connections.shutdown().await;
+    }
 }
 
 /// 在設定的 socket 上提供服務，直到 `shutdown` 被取消；結束時移除 socket 檔。
 pub async fn serve(state: AppState, shutdown: CancellationToken) -> anyhow::Result<()> {
     let socket_path = state.socket_path().to_path_buf();
-    let listener = bind(&socket_path)?;
+    let (listener, _ownership) = locked_bind(&socket_path)?;
+    let identity = std::fs::symlink_metadata(&socket_path)?;
     tracing::info!(kernel = %state.label(), socket = %socket_path.display(), "listening");
     let maintenance = state.clone();
     let stop = shutdown.clone();
@@ -51,18 +145,74 @@ pub async fn serve(state: AppState, shutdown: CancellationToken) -> anyhow::Resu
             },
         }
     });
-    let result = axum::serve(listener, router(state))
-        .with_graceful_shutdown(shutdown.cancelled_owned())
-        .await;
+    serve_connections(listener, router(state), shutdown, Duration::from_secs(30)).await;
     janitor.abort();
     let _ = janitor.await;
     // token 端點可能已輪換 refresh token：等換票寫回再結束。
     crate::credential::wait_for_refreshes(std::time::Duration::from_secs(30)).await;
     // 不留下沒有人監聽的 socket 檔，否則控制面會連到一個死掉的端點。
-    if let Err(err) = std::fs::remove_file(&socket_path)
-        && err.kind() != std::io::ErrorKind::NotFound
+    let cleanup = || -> std::io::Result<()> {
+        let current = std::fs::symlink_metadata(&socket_path)?;
+        if (identity.dev(), identity.ino()) == (current.dev(), current.ino())
+            && current.file_type().is_socket()
+        {
+            std::fs::remove_file(&socket_path)?;
+        }
+        Ok(())
+    };
+    if let Err(err) = cleanup()
+        && err.kind() != ErrorKind::NotFound
     {
         tracing::warn!(error = %err, "failed to remove socket");
     }
-    result.map_err(Into::into)
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::{StreamExt, stream};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn drain_ends_a_response_that_never_finishes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.sock");
+        let listener = bind(&path).unwrap();
+        let stop = CancellationToken::new();
+        let app = Router::new().route(
+            "/",
+            axum::routing::get(|| async {
+                let first = stream::once(async {
+                    Ok::<_, Error>(axum::body::Bytes::from_static(b"data: hello\n\n"))
+                });
+                let stream = first.chain(stream::pending());
+                axum::body::Body::from_stream(stream)
+            }),
+        );
+        let grace = Duration::from_millis(25);
+        let server = tokio::spawn(serve_connections(listener, app, stop.clone(), grace));
+        let mut peer = tokio::net::UnixStream::connect(path).await.unwrap();
+        peer.write_all(b"GET / HTTP/1.1\r\nhost: local\r\n\r\n")
+            .await
+            .unwrap();
+        let mut prefix = [0; 12];
+        tokio::time::timeout(Duration::from_secs(2), peer.read_exact(&mut prefix))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(&prefix, b"HTTP/1.1 200");
+        let started = tokio::time::Instant::now();
+        stop.cancel();
+        tokio::time::timeout(Duration::from_secs(2), server)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(started.elapsed() >= grace);
+        let mut rest = Vec::new();
+        tokio::time::timeout(Duration::from_secs(1), peer.read_to_end(&mut rest))
+            .await
+            .unwrap()
+            .unwrap();
+    }
 }

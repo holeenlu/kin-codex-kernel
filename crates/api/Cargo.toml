@@ -22,6 +22,10 @@ tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 
+hyper.workspace = true
+hyper-util.workspace = true
+libc.workspace = true
+socket2.workspace = true
 http-body.workspace = true
 http-body-util.workspace = true
 

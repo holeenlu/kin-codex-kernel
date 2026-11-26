@@ -221,7 +221,7 @@ async fn serves_on_a_private_unix_socket_and_cleans_up() {
     let dir = tempfile::tempdir().unwrap();
     let socket = dir.path().join("run").join("codex-kernel.sock");
     std::fs::create_dir_all(socket.parent().unwrap()).unwrap();
-    std::fs::write(&socket, b"stale").unwrap();
+    drop(std::os::unix::net::UnixListener::bind(&socket).unwrap());
 
     let state = AppState::new(config(socket.to_str().unwrap(), 1024), build()).unwrap();
     let shutdown = CancellationToken::new();
@@ -236,6 +236,12 @@ async fn serves_on_a_private_unix_socket_and_cleans_up() {
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
     let mut stream = stream.expect("kernel socket did not come up");
+    assert_eq!(
+        kin_api::bind(&socket).unwrap_err().kind(),
+        std::io::ErrorKind::AddrInUse
+    );
+    let probe = tokio::net::UnixStream::connect(&socket).await.unwrap();
+    drop(probe);
     assert_eq!(
         std::fs::metadata(&socket).unwrap().permissions().mode() & 0o777,
         0o600
@@ -261,4 +267,21 @@ async fn refuses_to_replace_a_directory() {
     let err = kin_api::bind(dir.path()).unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
     assert!(dir.path().is_dir());
+}
+
+#[tokio::test]
+async fn bind_preserves_regular_files_and_symlinks() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("credential.json");
+    let link = dir.path().join("kernel.sock");
+    std::fs::write(&file, b"keep").unwrap();
+    std::os::unix::fs::symlink(&file, &link).unwrap();
+    for path in [&file, &link] {
+        assert_eq!(
+            kin_api::bind(path).unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+    }
+    assert!(link.is_symlink());
+    assert_eq!(std::fs::read(file).unwrap(), b"keep");
 }

@@ -42,6 +42,10 @@ bytes = "1"
 flate2 = "1"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "service"] }
+libc = "0.2"
+socket2 = "0.6"
 http-body = "1"
 http-body-util = "0.1"
 serde = { version = "1", features = ["derive"] }

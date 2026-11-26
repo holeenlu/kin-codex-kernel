@@ -52,7 +52,7 @@ kin-registry  kin-upstream  kin-credentials  kin-ops   kin-analytics   ← 功�
 - **非同步執行環境：** tokio 多執行緒。每個請求一個任務；請求取消與程序關閉都經 `CancellationToken` 傳遞，不靠丟棄 future 的副作用。
 - **帳號隔離（K2）：** 每個帳號持有自己的 client、cookie、WebSocket 池、並發號誌與刷新狀態。上限一律按帳號設，程序層級只有防止耗盡的總上限。
 - **背壓（K1 起）：** 串流回應直接轉發，不先整段緩衝；慢的下游會自然地讓上游讀取變慢。
-- **關閉：** SIGTERM 或 SIGINT → 停止接新連線 → 等在途請求在期限內結束 → 移除 socket 檔。
+- **關閉：** SIGTERM 或 SIGINT → 停止接新連線 → 最多等 30 秒讓連線排空 → 關閉逾時連線 → 最多等 30 秒讓在途換票寫回 → 移除本程序建立的 socket。相鄰的 `.lock` 檔跨重啟保留，程序持有的獨占鎖在退出時釋放。
 
 ## 4. 錯誤模型
 
