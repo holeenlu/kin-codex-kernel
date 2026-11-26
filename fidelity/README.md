@@ -59,7 +59,7 @@ node fidelity/tools/derive-expected-tls.mjs /tmp/kc-session/tls.json /tmp/kc-ses
 
 ## 目前相容目標
 
-**官方原始碼**已於 2026-11-26 09:01（UTC+8）確認，在 Kin 適用範圍對齊 `openai/codex` main `5148e3d6421c3adb9991b712b85f973ac33b9e50`。逐提交處置見[本輪同步紀錄](../docs/sync/2026-11-26-main.md)。
+**官方原始碼**已於 2026-11-26 14:19（UTC+8）確認，在 Kin 適用範圍對齊 `openai/codex` main `af71942309704997f4bdc86c020717646423c080`。逐提交處置見[本輪同步紀錄](../docs/sync/2026-11-26-af719423-main.md)。
 
 2026-11-24 使用下述官方 0.171.0 發行套件補錄服務等級。在既有 TUI 終結 TLS 錄製器寫入的臨時 `config.toml` 頂層設定 `model = "gpt-5.5"` 與 `service_tier = "priority"`，遇到模型升級提示時選用現有模型。先跑正常 WS，再以 `REC_WEBSOCKET=reject` 錄製拒絕握手後的 HTTP。兩輪都完成生成，握手與 HTTP POST 都帶 `model=gpt-5.5;tier=priority`，預熱與生成幀、本體也帶 `priority`。這次補錄的觀察及原始碼依據見[服務等級](../docs/sync/2026-11-24-main.md#服務等級)。
 

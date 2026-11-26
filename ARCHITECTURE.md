@@ -157,3 +157,7 @@ CPR main 從 `7e32ba5dc01c2d62e0317c2d169fa7de67d6658b` 對齊至 `9469260dbae9f
 ### 2026-11-26 main 雙來源同步
 
 CPR main 從 `9469260dbae9fd31cf6e1233ca48f76dbfc116fb` 對齊至 `20d04ae57abf61ffc7c176eb73730577aaf1b0af`（15 筆）。官方 Codex main 從 `077eab36fd4c43e075fe1f13d50e4d04b2d414ee` 對齊至 `5148e3d6421c3adb9991b712b85f973ac33b9e50`（48 筆）。本輪無需移植。核對了帳號背景操作身分、工作區隱私規則、HTTP 本體日誌、Guardian 輸入與 Bazel zstd 的作用範圍。見[逐提交處置](docs/sync/2026-11-26-main.md)。
+
+### 2026-11-26 下午 main 雙來源同步
+
+CPR main 從 `20d04ae57abf61ffc7c176eb73730577aaf1b0af` 對齊至 `3da33389085386b790102ba4f86a8f4476a13c02`（8 筆），官方 Codex main 從 `5148e3d6421c3adb9991b712b85f973ac33b9e50` 對齊至 `af71942309704997f4bdc86c020717646423c080`（8 筆）。CPR 調整 GenAI 串流及 Antigravity 搜尋轉譯，官方調整執行器外掛探索與終端顯示。Kin 的出站契約沿用原實錄。適用範圍與核對依據見[逐提交處置](docs/sync/2026-11-26-af719423-main.md)。
