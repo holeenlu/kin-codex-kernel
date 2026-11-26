@@ -1,28 +1,36 @@
 //! 多個帳號只共用代理的實體名額；socket、cookie 與續接內容永不共用。
 use kin_contract::config::WsLimits;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, LazyLock, Mutex, Weak};
+use std::time::{Duration, Instant};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 #[derive(Debug)]
 pub(super) struct Capacity {
+    retry_limit: u16,
+    retries: Mutex<VecDeque<Instant>>,
     connecting: Option<Arc<Semaphore>>,
     live: Option<Arc<Semaphore>>,
     pools: Mutex<Vec<Weak<crate::websocket::WebsocketTransport>>>,
 }
-type Registry = HashMap<([u8; 32], u32, u32), Weak<Capacity>>;
+type Registry = HashMap<([u8; 32], u32, u32, u16), Weak<Capacity>>;
 static REGISTRY: LazyLock<Mutex<Registry>> = LazyLock::new(Mutex::default);
 
 impl Capacity {
     pub(super) fn for_proxy(proxy: &str, limits: WsLimits) -> Option<Arc<Self>> {
-        if proxy.is_empty() || limits.proxy_connections == 0 && limits.proxy_connecting == 0 {
+        if proxy.is_empty()
+            || limits.proxy_connections == 0
+                && limits.proxy_connecting == 0
+                && limits.proxy_retries_per_second == 0
+        {
             return None;
         }
         let key = (
             Sha256::digest(proxy.as_bytes()).into(),
             limits.proxy_connecting,
             limits.proxy_connections,
+            limits.proxy_retries_per_second,
         );
         let mut registry = REGISTRY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         registry.retain(|_, c| c.strong_count() > 0);
@@ -32,12 +40,35 @@ impl Capacity {
         let sem =
             |n: u32| (n != 0).then(|| Arc::new(Semaphore::new((n as usize).min(Semaphore::MAX_PERMITS))));
         let capacity = Arc::new(Self {
+            retry_limit: limits.proxy_retries_per_second,
+            retries: Mutex::default(),
             connecting: sem(limits.proxy_connecting),
             live: sem(limits.proxy_connections),
             pools: Mutex::default(),
         });
         registry.insert(key, Arc::downgrade(&capacity));
         Some(capacity)
+    }
+
+    pub(super) fn admit_retry(&self, now: Instant) -> bool {
+        if self.retry_limit == 0 {
+            return true;
+        }
+        let mut recent = self
+            .retries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        while recent
+            .front()
+            .is_some_and(|at| now.saturating_duration_since(*at) >= Duration::from_secs(1))
+        {
+            recent.pop_front();
+        }
+        if recent.len() >= usize::from(self.retry_limit) {
+            return false;
+        }
+        recent.push_back(now);
+        true
     }
 
     pub(super) fn attach(&self, pool: &Arc<crate::websocket::WebsocketTransport>) {
@@ -86,6 +117,20 @@ impl Capacity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn retry_window_is_shared_by_accounts_on_one_proxy() {
+        let limits = WsLimits {
+            proxy_retries_per_second: 1,
+            ..Default::default()
+        };
+        let a = Capacity::for_proxy("http://retry-proxy", limits).unwrap();
+        let b = Capacity::for_proxy("http://retry-proxy", limits).unwrap();
+        let now = Instant::now();
+        assert!(a.admit_retry(now));
+        assert!(!b.admit_retry(now));
+        assert!(b.admit_retry(now + Duration::from_secs(1)));
+    }
+
     #[test]
     fn accounts_share_only_proxy_resources_until_the_socket_drops() {
         let limits = WsLimits {

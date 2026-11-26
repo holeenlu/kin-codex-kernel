@@ -148,6 +148,7 @@ async fn ordinary_close_after_create_returns_unknown_without_another_handshake()
     let response = kernel(&base, &dir).oneshot(envelope(false)).await.unwrap();
     assert_eq!(response.status(), 502);
     assert_eq!(response.headers()["x-kin-upstream-sent"], "unknown");
+    assert!(response.headers().get("retry-after").is_none());
     assert_eq!(*seen.methods.lock().unwrap(), [Method::GET]);
     assert_eq!(*seen.creates.lock().unwrap(), 1);
 }

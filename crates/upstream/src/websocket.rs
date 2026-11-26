@@ -268,6 +268,16 @@ impl WebsocketTransport {
         let fallback_or_reject = |reason, oversized| {
             timing.update(|f| f.fallback = Some(reason));
             if policy.full() {
+                if matches!(
+                    reason,
+                    "handshake_budget"
+                        | "handshake_failed"
+                        | "handshake_rejected"
+                        | "breaker_open"
+                        | "proxy_ws_capacity"
+                ) {
+                    self.reserve_retry()?;
+                }
                 Ok(Outcome::Fallback(UpstreamSent::No))
             } else {
                 Err(policy.rejection(oversized, UpstreamSent::No))
@@ -300,7 +310,7 @@ impl WebsocketTransport {
         let mut socket = if let Some(s) = idle {
             s
         } else {
-            let opening = self.connect_with_retry(&headers, cancel, timing, UpstreamSent::No);
+            let opening = self.connect_with_retry(&headers, cancel, timing);
             let opened = if let Some(budget) = self.fast_budget.filter(|_| policy.full()) {
                 match tokio::time::timeout(budget, opening).await {
                     Ok(r) => r?,
@@ -423,15 +433,36 @@ impl WebsocketTransport {
         }
     }
 
+    fn reserve_retry(&self) -> Result<(), KernelError> {
+        if self
+            .capacity
+            .as_ref()
+            .is_some_and(|capacity| !capacity.admit_retry(Instant::now()))
+        {
+            return Err(KernelError::ProxyRetryBudget {
+                sent: UpstreamSent::No,
+            });
+        }
+        Ok(())
+    }
+
     async fn connect_with_retry(
         &self,
         headers: &[(HeaderName, HeaderValue)],
         cancel: &CancellationToken,
         timing: &TurnTiming,
-        already_sent: UpstreamSent,
     ) -> Result<Result<Socket, (u16, &'static str)>, KernelError> {
         let mut last_status = 0;
-        for _ in 0..HANDSHAKE_ATTEMPTS {
+        for attempt in 0..HANDSHAKE_ATTEMPTS {
+            if attempt > 0 && self.capacity.is_some() {
+                use std::hash::{BuildHasher, RandomState};
+                self.reserve_retry()?;
+                let delay = Duration::from_millis(10 + RandomState::new().hash_one(()) % 41);
+                tokio::select! {
+                    () = tokio::time::sleep(delay) => {},
+                    () = cancel.cancelled() => return Err(cancelled(UpstreamSent::No)),
+                }
+            }
             let (_connecting, live) = match self.capacity.as_ref().map(|c| c.reserve()).transpose() {
                 Ok(permits) => permits.unwrap_or_default(),
                 Err(()) => return Ok(Err((0, "proxy_ws_capacity"))),
@@ -446,7 +477,7 @@ impl WebsocketTransport {
             let attempt = tokio::select! {
                 attempt = tokio::time::timeout(CONNECT_TIMEOUT, self.connect(headers,timing)) => attempt
                     .unwrap_or_else(|_| Err(HandshakeError::Failed("websocket connect timed out".to_owned()))),
-                () = cancel.cancelled() => return Err(cancelled(already_sent)),
+                () = cancel.cancelled() => return Err(cancelled(UpstreamSent::No)),
             };
             if let Some(ticket) = ticket {
                 match &attempt {
@@ -468,7 +499,7 @@ impl WebsocketTransport {
                     return Err(KernelError::WebsocketHandshakeRateLimited {
                         facts,
                         headers,
-                        sent: already_sent,
+                        sent: UpstreamSent::No,
                     });
                 }
                 Err(HandshakeError::Rejected(status)) => last_status = status,

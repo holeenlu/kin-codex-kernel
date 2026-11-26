@@ -59,6 +59,8 @@ impl Default for IngressLimits {
 #[serde(default)]
 pub struct WsLimits {
     pub proxy_connecting: u32,
+    /// 相同實體代理每秒允許的額外握手及故障降級次數。
+    pub proxy_retries_per_second: u16,
     pub proxy_connections: u32,
     /// 可獨立重放的完整請求，建連到此期限仍未寫入就使用 HTTP；0 保持原有等待。
     pub fallback_after_ms: u32,
@@ -69,6 +71,7 @@ impl Default for WsLimits {
     fn default() -> Self {
         Self {
             proxy_connecting: 0,
+            proxy_retries_per_second: 8,
             proxy_connections: 0,
             fallback_after_ms: 0,
             read_idle_ms: 300_000,

@@ -504,6 +504,9 @@ fn after_unauthorized(mut err: KernelError) -> KernelError {
     if let KernelError::WebsocketHandshakeRateLimited {
         sent: sent @ UpstreamSent::No,
         ..
+    }
+    | KernelError::ProxyRetryBudget {
+        sent: sent @ UpstreamSent::No,
     } = &mut err
     {
         *sent = UpstreamSent::Yes;

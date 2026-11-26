@@ -23,6 +23,8 @@ pub enum KernelError {
     Unauthorized,
     #[error("kernel request capacity exhausted")]
     KernelBusy,
+    #[error("proxy retry budget exhausted")]
+    ProxyRetryBudget { sent: UpstreamSent },
     #[error("request body exceeds max_request_bytes")]
     BodyTooLarge,
     #[error("request body is not valid: {0}")]
@@ -164,7 +166,7 @@ impl KernelError {
             Self::InvalidBody(_) | Self::WebsocketPolicy { .. } => 400,
             Self::NotFound => 404,
             Self::NotImplemented(_) => 501,
-            Self::NoCredential | Self::KernelBusy => 503,
+            Self::NoCredential | Self::KernelBusy | Self::ProxyRetryBudget { .. } => 503,
             Self::InvalidCredential(_) | Self::UpstreamTransport { .. } => 502,
             Self::Upstream(failure) => failure.status,
             Self::UpstreamEvent { status, .. } => *status,
@@ -193,6 +195,7 @@ impl KernelError {
             Self::NotImplemented(_) => "not_implemented",
             Self::NoCredential => "no_credential",
             Self::KernelBusy => "kernel_busy",
+            Self::ProxyRetryBudget { .. } => "proxy_retry_budget",
             Self::InvalidCredential(_) => "invalid_json",
             Self::UpstreamTransport { .. } => "upstream_transport",
             Self::Upstream(failure) => failure.code(),
@@ -229,6 +232,7 @@ impl KernelError {
             | Self::Upstream(_)
             | Self::UpstreamEvent { .. }
             | Self::KernelBusy
+            | Self::ProxyRetryBudget { .. }
             | Self::RegistryNotReady
             | Self::AccountDisabled(_)
             | Self::AccountGenerationMismatch { .. }
@@ -263,7 +267,8 @@ impl KernelError {
             | Self::StaleGeneration
             | Self::AccountBusy(_)
             | Self::ReauthRequired(_) => UpstreamSent::No,
-            Self::WebsocketPolicy { sent, .. }
+            Self::ProxyRetryBudget { sent }
+            | Self::WebsocketPolicy { sent, .. }
             | Self::WebsocketHandshakeRateLimited { sent, .. }
             | Self::UpstreamTransport { sent, .. }
             | Self::ProxyUnavailable { sent, .. }
@@ -274,6 +279,9 @@ impl KernelError {
 
     /// 上游的 `retry-after` 照轉給控制面。
     pub fn retry_after(&self) -> Option<&str> {
+        if matches!(self, Self::ProxyRetryBudget { .. }) {
+            return Some("1");
+        }
         self.upstream_facts()?.retry_after.as_deref()
     }
 
