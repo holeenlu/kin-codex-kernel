@@ -218,6 +218,33 @@ fn deleting_an_account_with_requests_in_flight_drains_it() {
 }
 
 #[test]
+fn list_keeps_the_path_for_each_listed_generation_and_omits_it_for_tombstones() {
+    let original = env("a", 1, 0);
+    let registry = ready(vec![env("b", 1, 0), original.clone()]);
+    let _draining = registry.lease(&binding("b", 1)).unwrap();
+    registry.delete("b", 2, false).unwrap();
+    let (state, rows) = registry.list_with_paths();
+    let moved = with(env("a", 2, 1), |e| {
+        e.credential_path = "/new/credential.json".into()
+    });
+    registry.put("a", moved.clone(), build).unwrap();
+
+    assert_eq!(state, RegistryState::Ready);
+    let [a, b] = <&[_; 2]>::try_from(rows.as_slice()).unwrap();
+    assert_eq!(
+        (a.summary.account_ref.as_str(), a.summary.env_generation),
+        ("a", 1)
+    );
+    assert_eq!(a.credential_path.as_ref(), Some(&original.credential_path));
+    assert_eq!(b.summary.state, AccountState::Draining);
+    assert!(b.credential_path.is_none());
+    assert_eq!(
+        registry.list_with_paths().1[0].credential_path.as_ref(),
+        Some(&moved.credential_path)
+    );
+}
+
+#[test]
 fn a_forced_delete_cancels_the_requests_in_flight() {
     let registry = ready(vec![env("a", 1, 0)]);
     let lease = registry.lease(&binding("a", 1)).unwrap();

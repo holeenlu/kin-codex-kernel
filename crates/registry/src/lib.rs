@@ -9,6 +9,7 @@
 //! 執行環境用泛型，CAS 與排空的規則可以不碰網路就測試；建立執行環境的函式由呼叫端傳入。
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockWriteGuard, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -133,6 +134,13 @@ pub enum PutOutcome {
     Created,
     Updated,
     Unchanged,
+}
+
+/// 清單摘要與同一登錄版本的憑據路徑。仍在排空的墓碑只有摘要。
+#[derive(Debug)]
+pub struct ListedAccount {
+    pub summary: AccountSummary,
+    pub credential_path: Option<PathBuf>,
 }
 
 /// 健康回報需要的單一帳號快照。
@@ -590,30 +598,46 @@ impl<R, A> Registry<R, A> {
 
     /// `GET /internal/v1/accounts`：登錄中的帳號，加上仍在排空的已刪除帳號。
     pub fn list(&self) -> AccountList {
+        let (registry_state, rows) = self.list_with_paths();
+        AccountList {
+            registry_state,
+            accounts: rows.into_iter().map(|row| row.summary).collect(),
+        }
+    }
+
+    /// 在同一把讀鎖下取得環境代次與路徑，讓呼叫端在鎖外補上憑據代次。
+    pub fn list_with_paths(&self) -> (RegistryState, Vec<ListedAccount>) {
         let inner = self.read();
-        let mut accounts: Vec<AccountSummary> = inner
+        let state = inner.state;
+        let mut accounts: Vec<_> = inner
             .slots
             .iter()
-            .filter_map(|(key, slot)| match slot {
-                Slot::Live(live) => Some(AccountSummary {
-                    account_ref: key.clone(),
-                    env_generation: live.env.env_generation,
-                    credential_generation: None,
-                    state: state_of_live(live),
-                }),
-                Slot::Tombstone { generation, gate } => draining(gate).map(|_| AccountSummary {
-                    account_ref: key.clone(),
-                    env_generation: *generation,
-                    credential_generation: None,
-                    state: AccountState::Draining,
-                }),
+            .filter_map(|(key, slot)| {
+                let (env_generation, state, credential_path) = match slot {
+                    Slot::Live(live) => (
+                        live.env.env_generation,
+                        state_of_live(live),
+                        Some(live.env.credential_path.clone()),
+                    ),
+                    Slot::Tombstone { generation, gate } => {
+                        draining(gate)?;
+                        (*generation, AccountState::Draining, None)
+                    }
+                };
+                Some(ListedAccount {
+                    summary: AccountSummary {
+                        account_ref: key.clone(),
+                        env_generation,
+                        credential_generation: None,
+                        state,
+                    },
+                    credential_path,
+                })
             })
             .collect();
-        accounts.sort_by(|a, b| a.account_ref.cmp(&b.account_ref));
-        AccountList {
-            registry_state: inner.state,
-            accounts,
-        }
+        drop(inner);
+        accounts.sort_by(|a, b| a.summary.account_ref.cmp(&b.summary.account_ref));
+        (state, accounts)
     }
 
     /// 單一帳號的快照，供帳號健康回報。已刪除的帳號回 `account_unknown`。

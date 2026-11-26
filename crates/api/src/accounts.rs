@@ -11,7 +11,7 @@ use kin_contract::envelope::AccountBinding;
 use kin_contract::error::KernelError;
 use kin_contract::headers::UPSTREAM_SENT;
 use kin_contract::registry::{
-    AccountAck, AccountDelete, AccountEnv, AccountHealth, AccountState, Breakers, CredentialAck,
+    AccountAck, AccountDelete, AccountEnv, AccountHealth, AccountList, AccountState, Breakers, CredentialAck,
     CredentialPut, CredentialStatus, ReconcileRequest, RefreshAck,
 };
 use kin_contract::send::UpstreamSent;
@@ -80,16 +80,21 @@ fn build(config: &SharedConfig) -> impl Fn(&AccountEnv) -> Result<HttpUpstream, 
 
 async fn list(State(state): State<AppState>) -> Result<Response, ApiError> {
     let (registry, _) = registry(&state)?;
-    let mut list = registry.list();
-    // 憑據代次由核心寫在憑據檔裡；排空中的已刪除帳號沒有。
-    for account in &mut list.accounts {
-        if let Ok(view) = registry.view(&account.account_ref)
-            && let Ok(Some(current)) = stored::read(&view.env.credential_path).await
+    let (registry_state, rows) = registry.list_with_paths();
+    let mut accounts = Vec::with_capacity(rows.len());
+    for mut row in rows {
+        if let Some(path) = row.credential_path
+            && let Ok(Some(current)) = stored::read(&path).await
         {
-            account.credential_generation = Some(current.generation);
+            row.summary.credential_generation = Some(current.generation);
         }
+        accounts.push(row.summary);
     }
-    Ok(Json(list).into_response())
+    Ok(Json(AccountList {
+        registry_state,
+        accounts,
+    })
+    .into_response())
 }
 
 async fn reconcile(State(state): State<AppState>, body: Body) -> Result<Response, ApiError> {
