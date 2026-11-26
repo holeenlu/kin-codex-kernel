@@ -81,6 +81,7 @@ impl AccountEnv {
 /// `PUT /internal/v1/accounts/{ref}/credential` 的本體：匯入或替換憑據，由核心寫入（唯一寫入者）。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CredentialPut {
+    pub env_generation: u64,
     /// 憑據檔 `accounts[0]` 的內容：`access_token`、`refresh_token`、`id_token`、`chatgpt_account_id`、`email` 等。
     pub credential: serde_json::Map<String, serde_json::Value>,
     /// CAS 前提：控制面認為憑據檔目前的代次；檔案不存在時為 0。

@@ -247,7 +247,12 @@ async fn a_rotated_refresh_token_is_written_even_when_the_caller_goes_away() {
     // 控制面等不及就斷線：請求的 future 被丟棄
     let gone = tokio::time::timeout(
         Duration::from_millis(50),
-        call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})),
+        call(
+            &app,
+            "POST",
+            "/internal/v1/accounts/a/ops/refresh",
+            &json!({"env_generation": 1}),
+        ),
     )
     .await;
     assert!(
@@ -283,9 +288,15 @@ async fn a_credential_imported_during_a_refresh_is_not_marked_for_reauthorizatio
 
     let refreshing = {
         let app = app.clone();
-        tokio::spawn(
-            async move { call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})).await },
-        )
+        tokio::spawn(async move {
+            call(
+                &app,
+                "POST",
+                "/internal/v1/accounts/a/ops/refresh",
+                &json!({"env_generation": 1}),
+            )
+            .await
+        })
     };
     tokio::time::sleep(Duration::from_millis(100)).await;
     let (status, body) = call(
@@ -298,7 +309,7 @@ async fn a_credential_imported_during_a_refresh_is_not_marked_for_reauthorizatio
                 "refresh_token": "rt-imported",
                 "chatgpt_account_id": "acct-1",
             },
-            "expected_credential_generation": 1,
+            "env_generation": 1, "expected_credential_generation": 1,
         }),
     )
     .await;
@@ -367,16 +378,53 @@ async fn duplicate_id_across_accounts_and_routes_preserves_the_first_cancellatio
 }
 
 #[tokio::test]
+async fn stale_management_commands_cannot_touch_a_rebound_slot() {
+    let (base, fake) = start_fake().await;
+    let (_old, old_path) = setup();
+    let (_new, new_path) = setup();
+    let app = kernel(&base);
+    reconcile(&app, vec![account("a", &old_path, &json!({}))]).await;
+    reconcile(&app, vec![account("a", &new_path, &json!({"env_generation": 2}))]).await;
+    let before = std::fs::read(&new_path).unwrap();
+    for (method, uri, body) in [
+        (
+            "POST",
+            "/internal/v1/accounts/a/ops/refresh",
+            json!({"env_generation": 1}),
+        ),
+        (
+            "PUT",
+            "/internal/v1/accounts/a/credential",
+            json!({"env_generation": 1, "credential": {"access_token": "stale"}, "expected_credential_generation": 1}),
+        ),
+    ] {
+        let (status, answer) = call(&app, method, uri, &body).await;
+        assert_eq!(
+            (status, answer["error"]["code"].as_str()),
+            (StatusCode::CONFLICT, Some("account_generation_mismatch"))
+        );
+    }
+    assert_eq!(fake.token_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(std::fs::read(new_path).unwrap(), before);
+}
+
+#[tokio::test]
 async fn control_plane_commands_wait_for_the_registry_and_respect_disabling() {
     let (base, fake) = start_fake().await;
     let (_dir, path) = setup();
     let app = kernel(&base);
     let import = json!({
         "credential": { "access_token": access_token(now_secs() + 3600), "refresh_token": "rt-2" },
-        "expected_credential_generation": 1,
+        "env_generation": 1, "expected_credential_generation": 1,
     });
 
-    let (status, body) = call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})).await;
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/internal/v1/accounts/a/ops/refresh",
+        &json!({"env_generation": 1}),
+    )
+    .await;
     assert_eq!(
         (status, body["error"]["code"].as_str()),
         (StatusCode::SERVICE_UNAVAILABLE, Some("registry_not_ready"))
@@ -386,7 +434,13 @@ async fn control_plane_commands_wait_for_the_registry_and_respect_disabling() {
 
     // 控制面停用帳號是要核心放手憑據檔：不再換票，但仍可匯入
     reconcile(&app, vec![account("a", &path, &json!({ "enabled": false }))]).await;
-    let (status, body) = call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})).await;
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/internal/v1/accounts/a/ops/refresh",
+        &json!({"env_generation": 1}),
+    )
+    .await;
     assert_eq!(
         (status, body["error"]["code"].as_str()),
         (StatusCode::CONFLICT, Some("account_disabled"))

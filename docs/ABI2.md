@@ -20,8 +20,8 @@
 | `/internal/v1/accounts/{ref}/health` | GET | `AccountHealth`，不含秘密 |
 | `/internal/v1/codex/responses` | POST | 與 ABI 1 相同的 envelope，另加必填的 `account: {ref, env_generation}` |
 | `/internal/v1/cancel` | POST | `{request_id}`，與 ABI 1 相同 |
-| `/internal/v1/accounts/{ref}/credential` | PUT | `{credential, expected_credential_generation}`：匯入或替換憑據，由核心寫入；回 `{ok, ref, credential_generation}` |
-| `/internal/v1/accounts/{ref}/ops/refresh` | POST | 強制換票；只回 `{ok, ref, expires_at, credential_generation}`，不回任何 token |
+| `/internal/v1/accounts/{ref}/credential` | PUT | `{credential, env_generation, expected_credential_generation}`：匯入或替換憑據，由核心寫入；回 `{ok, ref, credential_generation}` |
+| `/internal/v1/accounts/{ref}/ops/refresh` | POST | 本體必填 `{env_generation}`。強制換票；只回 `{ok, ref, expires_at, credential_generation}`，不回任何 token |
 | `/internal/v1/accounts/{ref}/ops/{op}` | POST | 帳號操作代發：`usage`、`accounts_check`、`models`、`reset_credits`、`consume_credit`（K2d）；本體 `{request_id, env_generation, body}` |
 
 ## 登錄狀態
@@ -64,6 +64,8 @@
 - 實際使用的 `installation_id`、`telemetry_runtime` 以登錄為準。
 
 ## 憑據與刷新（K2c）
+
+升級順序為先更新控制面，使匯入及強制刷新都傳送派發時的環境代次，再升級核心。缺少代次回 400；與目前登錄不符時回 409 account_generation_mismatch，憑據檔與上游均無變更。匯入另以憑據代次執行 CAS。
 
 - **唯一寫入者：** 共享模式下憑據檔只由核心寫入（匯入走 `PUT .../credential`，換票由核心自己做）。檔案沿用 `{accounts: [{...}]}`，頂層加 `kin_credential_generation`；`expires_at` 與 vm2api 相同用 Unix 毫秒，取自 access token 的 JWT `exp`；另記 `last_refresh`（毫秒）。寫入為暫存檔、fsync、rename、fsync 目錄，權限 0600，保留其他欄位。
 - **兩把鎖：** 換票的單飛鎖與寫檔鎖分開。匯入只拿寫檔鎖，不等進行中的換票；換票晚回來時，提交前發現帳號唯一鍵或 refresh token 已變，就丟掉自己的結果、改用新的憑據（只有代次變了、refresh token 相同時照樣寫入，否則檔案會留下已被消耗的 refresh token）。

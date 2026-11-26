@@ -197,8 +197,16 @@ async fn put_credential(
     body: Body,
 ) -> Result<Response, ApiError> {
     let (registry, _) = registry(&state)?;
-    let view = registry.managed(&account_ref, false)?;
     let request: CredentialPut = read_json(body, ACCOUNT_BODY_LIMIT).await?;
+    let view = registry.managed(&account_ref, false)?;
+    if view.env.env_generation != request.env_generation {
+        return Err(KernelError::AccountGenerationMismatch {
+            account_ref,
+            expected: view.env.env_generation,
+            actual: request.env_generation,
+        }
+        .into());
+    }
     let generation = credential::import(
         &view.env,
         view.ext(),
@@ -253,7 +261,15 @@ async fn operation(
     body: Body,
 ) -> Result<Response, ApiError> {
     if op == "refresh" {
-        return force_refresh(&state, account_ref).await;
+        let request: OperationRequest = read_json(body, ACCOUNT_BODY_LIMIT).await?;
+        return force_refresh(
+            &state,
+            AccountBinding {
+                account_ref,
+                env_generation: request.env_generation,
+            },
+        )
+        .await;
     }
     let op = Op::parse(&op).ok_or(KernelError::NotFound)?;
     let (registry, _) = registry(&state)?;
@@ -303,9 +319,9 @@ async fn operation(
 
 /// `POST /internal/v1/accounts/{ref}/ops/refresh`：控制面要求換票。只回結果，不回任何 token；
 /// 結果不明時控制面以帳號健康的憑據代次確認，不得重送（設計第 4.4 節）。
-async fn force_refresh(state: &AppState, account_ref: String) -> Result<Response, ApiError> {
+async fn force_refresh(state: &AppState, binding: AccountBinding) -> Result<Response, ApiError> {
     let (registry, _) = registry(state)?;
-    let view = registry.managed(&account_ref, true)?;
+    let view = registry.account(&binding)?;
     let profile = view.ext().profile();
     let refreshed = credential::refresh(
         &view.env,
@@ -319,7 +335,7 @@ async fn force_refresh(state: &AppState, account_ref: String) -> Result<Response
     .inspect_err(|err| view.note_error(err))?;
     Ok(Json(RefreshAck {
         ok: true,
-        account_ref,
+        account_ref: binding.account_ref,
         expires_at: refreshed.expires_at_ms(),
         credential_generation: refreshed.generation,
     })
