@@ -124,30 +124,30 @@ async fn serve_connections(listener: UnixListener, app: Router, stop: Cancellati
     }
 }
 
+async fn maintain(state: AppState) {
+    match state.mode() {
+        crate::state::Mode::Shared { .. } => crate::credential::refresh_in_background(state).await,
+        crate::state::Mode::Single { upstream, .. } => loop {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            upstream.reap_idle();
+        },
+    }
+}
+
 /// 在設定的 socket 上提供服務，直到 `shutdown` 被取消；結束時移除 socket 檔。
 pub async fn serve(state: AppState, shutdown: CancellationToken) -> anyhow::Result<()> {
     let socket_path = state.socket_path().to_path_buf();
     let (listener, _ownership) = locked_bind(&socket_path)?;
     let identity = std::fs::symlink_metadata(&socket_path)?;
     tracing::info!(kernel = %state.label(), socket = %socket_path.display(), "listening");
-    let maintenance = state.clone();
-    let stop = shutdown.clone();
-    let janitor = tokio::spawn(async move {
-        match maintenance.mode() {
-            crate::state::Mode::Shared { .. } => {
-                crate::credential::refresh_in_background(maintenance, stop).await
-            }
-            crate::state::Mode::Single { upstream, .. } => loop {
-                tokio::select! {
-                    () = stop.cancelled() => break,
-                    () = tokio::time::sleep(std::time::Duration::from_secs(30)) => upstream.reap_idle(),
-                }
-            },
-        }
-    });
-    serve_connections(listener, router(state), shutdown, Duration::from_secs(30)).await;
-    janitor.abort();
-    let _ = janitor.await;
+    let connections = serve_connections(
+        listener,
+        router(state.clone()),
+        shutdown.clone(),
+        Duration::from_secs(30),
+    );
+    // 掃描與服務共用生命週期；已開始的換票由 RefreshInFlight 追蹤到寫回。
+    tokio::join!(connections, shutdown.run_until_cancelled(maintain(state)));
     // token 端點可能已輪換 refresh token：等換票寫回再結束。
     crate::credential::wait_for_refreshes(std::time::Duration::from_secs(30)).await;
     // 不留下沒有人監聽的 socket 檔，否則控制面會連到一個死掉的端點。
@@ -173,6 +173,40 @@ mod tests {
     use super::*;
     use futures_util::{StreamExt, stream};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn dropping_serve_releases_the_maintenance_runtime_without_a_shutdown_signal() {
+        use futures_util::FutureExt;
+        use std::sync::Arc;
+
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("test.sock");
+        let config = serde_json::from_value(serde_json::json!({
+            "socket_path": socket, "vm_id": "test", "device_id": "test",
+            "credential_path": dir.path().join("credential.json"), "internal_token": "test"
+        }))
+        .unwrap();
+        let state = AppState::new(
+            config,
+            crate::BuildInfo {
+                name: "test",
+                version: "test",
+                build_sha: "test",
+            },
+        )
+        .unwrap();
+        let crate::state::Mode::Single { upstream, .. } = state.mode() else {
+            unreachable!()
+        };
+        let runtime = Arc::downgrade(upstream);
+        let stop = CancellationToken::new();
+        let mut service = Box::pin(serve(state, stop.clone()));
+        assert!(service.as_mut().now_or_never().is_none());
+        assert!(socket.exists());
+        drop(service);
+        assert!(!stop.is_cancelled());
+        assert!(runtime.upgrade().is_none(), "maintenance still owns the runtime");
+    }
 
     #[tokio::test]
     async fn drain_ends_a_response_that_never_finishes() {

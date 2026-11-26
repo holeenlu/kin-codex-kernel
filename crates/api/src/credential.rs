@@ -629,14 +629,11 @@ pub(crate) async fn send(
 }
 
 /// 背景刷新：每 30 秒看一次近期用過的帳號，接近到期就提早換票。每個帳號各自一個工作，互不阻塞。
-pub(crate) async fn refresh_in_background(state: AppState, shutdown: CancellationToken) {
+pub(crate) async fn refresh_in_background(state: AppState) {
     let mut tick = tokio::time::interval(BACKGROUND_TICK);
     tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
-        tokio::select! {
-            _ = tick.tick() => {}
-            () = shutdown.cancelled() => return,
-        }
+        tick.tick().await;
         let Mode::Shared { registry, .. } = state.mode() else {
             return;
         };
