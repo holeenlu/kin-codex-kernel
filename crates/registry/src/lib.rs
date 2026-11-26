@@ -197,6 +197,15 @@ struct Inner<R, A> {
     slots: HashMap<String, Slot<R, A>>,
 }
 
+impl<R, A> Inner<R, A> {
+    fn reusable_runtime(&self, env: &AccountEnv) -> Option<Arc<R>> {
+        match self.slots.get(&env.account_ref) {
+            Some(Slot::Live(live)) if same_runtime(&live.env, env) => Some(Arc::clone(&live.runtime)),
+            _ => None,
+        }
+    }
+}
+
 /// 對帳時現有帳號的快照：環境、執行環境與閘門。
 type Existing<R, A> = HashMap<String, (AccountEnv, Arc<R>, Arc<Gate<A>>)>;
 
@@ -320,19 +329,44 @@ impl<R, A> Registry<R, A> {
         }
         validate(&env)?;
         let mut inner = self.ready_for_writes()?;
-        // 兩個帳號共用一個憑據檔，就有兩個換票者輪流消耗同一個 refresh token。
+        let mut outcome = self.put_outcome(&inner, &env)?;
+        if outcome == PutOutcome::Unchanged {
+            return Ok(outcome);
+        }
+        let runtime = if let Some(runtime) = inner.reusable_runtime(&env) {
+            runtime
+        } else {
+            drop(inner);
+            let prepared = build(&env).map_err(invalid)?;
+            inner = self.ready_for_writes()?;
+            // 建立期間可能有其他 PUT、DELETE 或對帳。以現在的登錄重驗所有條件。
+            outcome = self.put_outcome(&inner, &env)?;
+            if outcome == PutOutcome::Unchanged {
+                return Ok(outcome);
+            }
+            inner.reusable_runtime(&env).unwrap_or_else(|| Arc::new(prepared))
+        };
+        // 在途請求留在舊閘門；同一個憑據檔沿用換票狀態。
+        let gate = match inner.slots.get(path_ref) {
+            Some(Slot::Live(live)) if live.env.credential_path == env.credential_path => {
+                Arc::clone(&live.gate)
+            }
+            _ => self.new_gate(&env),
+        };
+        inner
+            .slots
+            .insert(path_ref.to_owned(), Slot::Live(Live { env, runtime, gate }));
+        Ok(outcome)
+    }
+
+    fn put_outcome(&self, inner: &Inner<R, A>, env: &AccountEnv) -> Result<PutOutcome, KernelError> {
         if inner.slots.iter().any(|(key, slot)| {
-            key != path_ref
+            key != &env.account_ref
                 && matches!(slot, Slot::Live(live) if live.env.credential_path == env.credential_path)
         }) {
             return Err(invalid("credential_path is used by another account"));
         }
-        let live_count = inner
-            .slots
-            .values()
-            .filter(|slot| matches!(slot, Slot::Live(_)))
-            .count();
-        match inner.slots.get(path_ref) {
+        match inner.slots.get(&env.account_ref) {
             Some(Slot::Live(live)) => {
                 let current = live.env.env_generation;
                 if env.env_generation < current {
@@ -348,34 +382,20 @@ impl<R, A> Registry<R, A> {
                 if env.expected_env_generation != current {
                     return Err(KernelError::GenerationConflict);
                 }
-                let runtime = if same_runtime(&live.env, &env) {
-                    Arc::clone(&live.runtime)
-                } else {
-                    Arc::new(build(&env).map_err(invalid)?)
-                };
-                // 換了憑據檔就換一份換票狀態（舊檔的需要重新授權、退避不帶過來）；在途請求留在舊閘門。
-                let gate = if live.env.credential_path == env.credential_path {
-                    Arc::clone(&live.gate)
-                } else {
-                    self.new_gate(&env)
-                };
-                inner
-                    .slots
-                    .insert(path_ref.to_owned(), Slot::Live(Live { env, runtime, gate }));
                 Ok(PutOutcome::Updated)
             }
             Some(Slot::Tombstone { generation, .. }) if env.env_generation <= *generation => {
                 Err(KernelError::StaleGeneration)
             }
             _ => {
-                if live_count >= self.max_accounts {
+                let count = inner
+                    .slots
+                    .values()
+                    .filter(|slot| matches!(slot, Slot::Live(_)))
+                    .count();
+                if count >= self.max_accounts {
                     return Err(invalid(format!("more than {} accounts", self.max_accounts)));
                 }
-                let runtime = Arc::new(build(&env).map_err(invalid)?);
-                let gate = self.new_gate(&env);
-                inner
-                    .slots
-                    .insert(path_ref.to_owned(), Slot::Live(Live { env, runtime, gate }));
                 Ok(PutOutcome::Created)
             }
         }

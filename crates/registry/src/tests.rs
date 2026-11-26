@@ -132,6 +132,52 @@ fn put_validates_the_request() {
 }
 
 #[test]
+fn put_rechecks_the_tombstone_after_building_without_the_registry_lock() {
+    let registry = ready(vec![env("a", 1, 0), env("b", 1, 0)]);
+    let update = with(env("a", 2, 1), |e| e.device_id = "new-device".into());
+    let result = registry.put("a", update, |requested| {
+        assert!(
+            registry.inner.try_read().is_ok(),
+            "builder holds the registry write lock"
+        );
+        let _other = registry.lease(&binding("b", 1)).unwrap();
+        registry.delete("a", 2, false).unwrap();
+        build(requested)
+    });
+    assert_eq!(code(result), "stale_generation");
+    assert_eq!(code(registry.view("a")), "account_unknown");
+}
+
+#[test]
+fn concurrent_creates_recheck_idempotency_capacity_and_credential_ownership() {
+    let registry: Registry<Fake> = Registry::new(1);
+    registry.reconcile(vec![], build).unwrap();
+    let result = registry.put("a", env("a", 1, 0), |requested| {
+        assert!(registry.inner.try_write().is_ok());
+        registry.put("a", requested.clone(), build).unwrap();
+        build(requested)
+    });
+    assert_eq!(result.unwrap(), PutOutcome::Unchanged);
+
+    for same_path in [false, true] {
+        let registry: Registry<Fake> = Registry::new(if same_path { 2 } else { 1 });
+        registry.reconcile(vec![], build).unwrap();
+        let result = registry.put("a", env("a", 1, 0), |requested| {
+            assert!(registry.inner.try_write().is_ok());
+            let mut other = env("b", 1, 0);
+            if same_path {
+                other.credential_path.clone_from(&requested.credential_path);
+            }
+            registry.put("b", other, build).unwrap();
+            build(requested)
+        });
+        assert_eq!(code(result), "invalid_request");
+        assert_eq!(code(registry.view("a")), "account_unknown");
+        assert!(registry.view("b").is_ok());
+    }
+}
+
+#[test]
 fn delete_leaves_a_tombstone_that_late_commands_cannot_cross() {
     let registry = ready(vec![env("a", 5, 0)]);
     assert_eq!(code(registry.delete("a", 4, false)), "stale_generation");
