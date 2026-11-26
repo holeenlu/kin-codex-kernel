@@ -13,39 +13,24 @@
 
 ## 2. 分層與相依規則
 
-```text
-                 kin-codex-kernel（執行檔：只負責組裝）
-                              │
-                           kin-api（HTTP 邊界）
-                              │
-   ┌──────────────┬───────────┼────────────┬──────────────┐
-kin-registry  kin-upstream  kin-credentials  kin-ops   kin-analytics   ← 功能層（K1、K2 加入）
-   └──────────────┴───────────┼────────────┴──────────────┘
-                           kin-core（領域模型與埠，無 IO）
-                              │
-                        kin-contract（線路契約，純型別）
+```mermaid
+flowchart TD
+    Kernel[kin-codex-kernel] --> API[kin-api]
+    Kernel --> Contract[kin-contract]
+    API --> Registry[kin-registry]
+    API --> Upstream[kin-upstream]
+    API --> Credentials[kin-credentials]
+    API --> Identity[kin-identity]
+    API --> Contract
+    Registry --> Contract
+    Upstream --> Contract
+    Upstream --> Credentials
+    Upstream --> Identity
+    Identity --> Contract
+    Credentials --> Contract
 ```
 
-| crate | 狀態 | 責任 | 不准做的事 |
-| --- | --- | --- | --- |
-| `kin-contract` | 已有 | 與控制面的線路契約：設定格式、推理 envelope 與帳號環境、ABI 與能力、錯誤碼（含上游錯誤的對應）、送出狀態、健康與描述的回應格式 | 任何 IO；相依 HTTP 框架或執行環境 |
-| `kin-identity` | 已有（K1a） | 出站身分：originator `codex-tui`，依帳號環境照官方規則組 User-Agent（os_info 與終端偵測的格式），無法如實表達時依 `device_id` 穩定退回 | 任何 IO |
-| `kin-api` | 已有 | HTTP 邊界：token 驗證、路由、請求大小、錯誤對應（含 `retry-after`）、在途請求的取消登記、串流轉發、Unix socket 生命週期 | 業務邏輯；直接連上游 |
-| `kin-codex-kernel` | 已有 | 組裝：命令列、讀設定檔、日誌、執行環境、訊號轉成關閉訊號 | 業務邏輯 |
-| `xtask` | 已有 | 發布工具：建置記錄、`SHA256SUMS`、glibc 下限檢查 | 隨核心發布 |
-| `kin-core` | K1 | 領域型別（帳號參照、兩種代次、帳號唯一鍵）與埠（`CredentialStore`、`Upstream`、`Clock` 等 trait） | 任何具體 IO 實作 |
-| `kin-credentials` | 已有（K1a：唯讀）；K2 擴充 | 相容模式：每次請求重讀憑據檔、不自行刷新（Node 負責換票）。共享模式再擴充為唯一寫入者：提交時比對、原子寫入、刷新單飛、主動刷新與退避 | 送推理請求 |
-| `kin-upstream` | 已有（K1a：HTTP；K1b：WebSocket，含對話內連線重用、426 後改走 HTTP；K1c：代理出口〔socks5、socks5h、http CONNECT〕、代理健康檢查、下游安裝 id 改寫） | TLS 對齊官方 CLI（HTTP 走 native-tls 靜態 OpenSSL、WebSocket 走 rustls 加 aws-lc）、出站身分對齊官方互動式 TUI（`codex-tui`），User-Agent 由核心依帳號環境照官方規則組成，見 `fidelity/README.md`；按帳號的 HTTP／WebSocket client、出站標頭組裝與拒絕清單、熔斷；包裝官方 `codex-api` | 讀寫憑據檔；選號 |
-| `kin-analytics` | K1 | 依官方事件結構產生 analytics，帶入各帳號的執行環境身分 | — |
-| `kin-registry` | K2 | 帳號登錄：代次與 CAS、墓碑、冷啟對帳、排空 | — |
-| `kin-ops` | K2 | 列舉的帳號操作代發（額度、重置、搜尋、圖片、模型目錄、刷新） | 接受任意 URL |
-
-規則：
-
-1. **相依只能往下。** 功能層彼此不直接相依，需要協作時經 `kin-core` 的埠。
-2. **IO 只在功能層與執行檔。** `kin-contract`、`kin-core` 可以在沒有網路、沒有檔案系統的環境下完整測試。
-3. **一個概念只有一個定義處。** 錯誤碼、標頭名稱、送出狀態只在 `kin-contract` 定義；處理程式不自行拼 JSON。
-4. **不預先建立空殼 crate。** 表中標 K1、K2 的 crate，等到真的有實作時才加入。
+`kin-api` 組裝帳號租約、憑據刷新與傳輸，在 HTTP 邊界處理准入、認證、取消及結果回報。`kin-registry` 用泛型保存每個帳號的執行環境，負責環境代次、墓碑與對帳。`kin-credentials` 負責本地憑據讀寫，`kin-upstream` 使用憑據值執行 HTTP、WebSocket、列舉的帳號操作與遙測。`kin-identity` 產生出站身分，`kin-contract` 定義兩種 ABI 共用的型別。`xtask` 是獨立的建置與發行工具。
 
 ## 3. 執行模型
 
@@ -101,7 +86,7 @@ kin-registry  kin-upstream  kin-credentials  kin-ops   kin-analytics   ← 功�
 
 | 面向 | 既有實作的問題 | 本核心的做法 |
 | --- | --- | --- |
-| 邊界 | codex-proxy-rs 的執行核心與它自己的控制面深度耦合：transport 約一半檔案引用 `gateway_core`，初始化要注入一組儲存埠，並且必需 PostgreSQL 與 Redis | 核心沒有任何控制面邏輯，也不需要外部儲存；IO 經 `kin-core` 的埠隔離，可以獨立測試與替換 |
+| 邊界 | codex-proxy-rs 的執行核心與它自己的控制面深度耦合：transport 約一半檔案引用 `gateway_core`，初始化要注入一組儲存埠，並且必需 PostgreSQL 與 Redis | 核心沒有任何控制面邏輯，也不需要外部儲存；登錄邏輯可注入 runtime 工廠，傳輸透過受控上游驗證 |
 | 程序數 | vm2api 現況每個帳號一個核心程序 | 共享模式一個程序服務多個帳號；單帳號模式保留作為過渡與回滾 |
 | 資源上限 | codex-proxy-rs 用全程序共用的小上限（同時 128 條、等待 1024 條、WS 同時建連 16 條），client 快取滿 256 就整個清空 | 上限按帳號設；client 跟著帳號登錄的生命週期，不用全域快取 |
 | 身分 | codex-proxy-rs 依 Client Key 選身分畫像，預設是 Desktop 身分 | 身分按帳號，出站一律用 CLI 身分，並以擬真基準驗證（含 TLS 握手） |
