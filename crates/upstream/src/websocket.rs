@@ -394,7 +394,10 @@ impl WebsocketTransport {
                     Ok(Next::Closed|Next::Broken)=>return Err(KernelError::UpstreamTransport{message:"websocket closed before the first event".to_owned(),sent:UpstreamSent::Unknown}),
                 }
             };
-            if upload_complete && mode == "incremental" && previous_missing(&first) {
+            let event = serde_json::from_str::<Event>(&first).ok();
+            // 正常首幀沿用同一次解析。非標準格式仍交給原本的錯誤解碼器辨識。
+            let maybe_error = event.as_ref().is_none_or(|e| e.kind == "error");
+            if maybe_error && upload_complete && mode == "incremental" && previous_missing(&first) {
                 attempt = Attempt::AfterCacheRejection;
                 mode = "full_replay";
                 message = create_message(body);
@@ -405,11 +408,11 @@ impl WebsocketTransport {
                 continue;
             }
             timing.update(|f| f.sent = Some("1"));
-            if let Ok(event) = serde_json::from_str::<Event>(&first) {
+            if let Some(event) = event {
                 timing.event(&event);
             }
             let mut passthrough = std::mem::take(&mut socket.opening_headers);
-            if let Some(err) = first_event_error(&first, &passthrough) {
+            if maybe_error && let Some(err) = first_event_error(&first, &passthrough) {
                 return Err(err);
             }
             if !policy.warmup()
