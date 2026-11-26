@@ -71,7 +71,7 @@
 - **401 復原：** 同一個 token 重讀後重試 → 再 401 就以 `unauthorized_recovery` 換票後重試 → 第三次仍 401 交回控制面（`401 upstream_auth`，`x-kin-upstream-sent: 1`）。
 - **背景刷新：** 每 30 秒檢查近 15 分鐘用過的帳號；到期窗口另加依帳號固定的 0–150 秒偏移。閒置帳號不刷新。官方沒有背景刷新，這是設計第 5.4 節的決定。
 - **換票請求：** 照官方 CLI 0.171.0（私有基準 `fidelity/baseline/.../refresh.json`）：走帳號自己的 HTTP client 與出口；身分與當下的推理請求相同；本體為 JSON、欄位依字母排序。
-- **失敗：** `refresh_token_expired`／`refresh_token_reused`／`refresh_token_invalidated`、401、400 加 `invalid_grant` 為永久失敗，帳號標為需要重新授權，之後的請求回 `401 reauth_required`（確定沒送出），直到匯入新憑據。其他為暫時失敗：30 分鐘內 5 次就停 10 分鐘（`ops/refresh` 不受限，401 復原也要守）；access token 已過期、且從第一次暫時失敗起連續 2 小時換不到票，也標為需要重新授權。連不到 token 端點（確定沒送出）是出口問題，不計入。失敗回來時若檔案已被匯入換掉（代次或 refresh token 不同），失敗屬於舊 token，不標記、不計入，直接採用新憑據。
+- **失敗：** `refresh_token_expired`／`refresh_token_reused`／`refresh_token_invalidated`、401、400 加 `invalid_grant` 為永久失敗，帳號標為需要重新授權，之後的請求回 `401 reauth_required`（確定沒送出），直到匯入新憑據。未知的 401 錯誤碼統一記為 `http_401`。換票錯誤正文最多讀 16 KiB，成功正文上限為 256 KiB；超限回暫時失敗。其他為暫時失敗：30 分鐘內 5 次就停 10 分鐘（`ops/refresh` 不受限，401 復原也要守）；access token 已過期、且從第一次暫時失敗起連續 2 小時換不到票，也標為需要重新授權。連不到 token 端點（確定沒送出）是出口問題，不計入。失敗回來時若檔案已被匯入換掉（代次或 refresh token 不同），失敗屬於舊 token，不標記、不計入，直接採用新憑據。
 - **健康：** 帳號健康回 `credential`（`ok`、`refreshing`、`reauth_required`、`missing`）與 `credential_generation`；`/internal/health` 的 `accounts.failing` 計入需要重新授權的帳號；`GET /internal/v1/accounts` 帶各帳號的憑據代次。回應、健康與日誌都不含 token。
 
 ## 帳號操作、cookie 與熔斷（K2d）

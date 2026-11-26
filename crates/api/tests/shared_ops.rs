@@ -462,3 +462,51 @@ async fn a_cancelled_operation_reports_an_unknown_send_state() {
         "the upstream already answered; the result is unknown, not unsent"
     );
 }
+
+#[tokio::test]
+async fn oversized_refresh_success_leaves_the_stored_credential_untouched() {
+    let (base, fake) = start_fake().await;
+    let app = kernel(&base);
+    let (_dir, path) = setup();
+    reconcile(&app, vec![account("a", &path, &json!({}))]).await;
+    fake.plan.lock().unwrap().push_back((
+        0,
+        200,
+        json!({
+            "refresh_token": "replacement", "padding": "x".repeat(256 * 1024)
+        }),
+    ));
+    let (status, body) = call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})).await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "{body}");
+    assert_eq!(body["error"]["code"], "refresh_failed");
+    assert_eq!(stored_refresh_token(&path), "rt-1");
+}
+
+#[tokio::test]
+async fn refresh_classifies_an_error_as_soon_as_the_excerpt_is_full() {
+    let provider = axum::Router::new().route(
+        "/oauth/token",
+        post(|| async {
+            let mut prefix = br#"{"error":"refresh_token_reused"}"#.to_vec();
+            prefix.resize(16 * 1024, b' ');
+            let chunks = stream::once(async move { Ok::<_, std::io::Error>(Bytes::from(prefix)) });
+            (
+                StatusCode::BAD_REQUEST,
+                Body::from_stream(chunks.chain(stream::pending())),
+            )
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let app = kernel(&format!("http://{}", listener.local_addr().unwrap()));
+    tokio::spawn(async move { axum::serve(listener, provider).await.unwrap() });
+    let (_dir, path) = setup();
+    reconcile(&app, vec![account("a", &path, &json!({}))]).await;
+    let (status, body) = tokio::time::timeout(
+        Duration::from_secs(2),
+        call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})),
+    )
+    .await
+    .unwrap();
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "{body}");
+    assert_eq!(body["error"]["code"], "reauth_required");
+}

@@ -25,6 +25,7 @@ pub const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const TIMEOUT: Duration = Duration::from_secs(45);
 /// 錯誤本體最多讀這麼多，避免異常回應占用記憶體；只用來解析錯誤碼，不轉給控制面。
 const ERROR_BODY_LIMIT: usize = 16 * 1024;
+const TOKEN_BODY_LIMIT: usize = 256 * 1024;
 
 /// 換票原因，照官方送出（只供 token 端點診斷，不是 token 是否有效的依據）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,7 +98,9 @@ pub fn classify(status: u16, body: &str) -> RefreshError {
     let invalid_grant = status == 400 && normalized.as_deref() == Some("invalid_grant");
     if status == 401 || known || invalid_grant {
         RefreshError::Permanent {
-            code: normalized.unwrap_or_else(|| format!("http_{status}")),
+            code: normalized
+                .filter(|_| known || invalid_grant)
+                .unwrap_or_else(|| format!("http_{status}")),
         }
     } else {
         RefreshError::Transient {
@@ -132,7 +135,7 @@ impl HttpUpstream {
                 message: err.to_string(),
                 sent: UpstreamSent::No,
             })?;
-        let response = self
+        let mut response = self
             .client
             .post(&self.token_url)
             .timeout(TIMEOUT)
@@ -149,19 +152,37 @@ impl HttpUpstream {
                 } else {
                     UpstreamSent::Unknown
                 },
-                message: err.to_string(),
+                message: err.without_url().to_string(),
             })?;
         let status = response.status().as_u16();
-        let raw = response.bytes().await.map_err(|err| RefreshError::Transient {
-            message: err.to_string(),
+        let success = response.status().is_success();
+        let limit = if success {
+            TOKEN_BODY_LIMIT
+        } else {
+            ERROR_BODY_LIMIT
+        };
+        let mut raw = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(|err| RefreshError::Transient {
+            message: err.without_url().to_string(),
             sent: UpstreamSent::Unknown,
-        })?;
-        if !(200..300).contains(&status) {
-            let cut = raw.len().min(ERROR_BODY_LIMIT);
-            return Err(classify(status, &String::from_utf8_lossy(&raw[..cut])));
+        })? {
+            let remaining = limit - raw.len();
+            if success && chunk.len() > remaining {
+                return Err(RefreshError::Transient {
+                    message: "token endpoint response exceeds the size limit".to_owned(),
+                    sent: UpstreamSent::Yes,
+                });
+            }
+            raw.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+            if !success && raw.len() == limit {
+                break;
+            }
         }
-        let parsed: TokenResponse = serde_json::from_slice(&raw).map_err(|err| RefreshError::Transient {
-            message: format!("token endpoint answered an unreadable body: {err}"),
+        if !success {
+            return Err(classify(status, &String::from_utf8_lossy(&raw)));
+        }
+        let parsed: TokenResponse = serde_json::from_slice(&raw).map_err(|_| RefreshError::Transient {
+            message: "token endpoint answered an unreadable body".to_owned(),
             sent: UpstreamSent::Yes,
         })?;
         let clean = |value: Option<String>| {
@@ -217,6 +238,10 @@ mod tests {
             permanent("invalid_grant")
         );
         assert_eq!(classify(401, "not json"), permanent("http_401"));
+        assert_eq!(
+            classify(401, r#"{"error":"private upstream diagnostic"}"#),
+            permanent("http_401")
+        );
         // 其他錯誤：暫時失敗，退避後再試
         for (status, body) in [
             (500, ""),
