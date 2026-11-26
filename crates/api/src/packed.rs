@@ -15,7 +15,7 @@ use kin_contract::send::UpstreamSent;
 use sha2::{Digest, Sha256};
 use tokio::sync::Semaphore;
 
-use crate::{AppState, error::ApiError, routes};
+use crate::{AppState, error::ApiError, responses::respond};
 
 const BUDGET: usize = 32 << 20;
 const TTL: Duration = Duration::from_secs(300);
@@ -135,9 +135,21 @@ pub(crate) async fn responses(
     let mut admission = state.admission().enter(false)?;
     let data = admission.read(body, limit).await?;
     let received = data.len();
-    let mut response = match dispatch(state, headers, data, permit, admission).await {
-        Ok(response) => response,
-        Err(error) => error.into_response(),
+    let bases = state.packed();
+    let mut response = match decode(bases, &headers, data, limit, permit, admission).await {
+        Ok(Some((raw, admission))) => {
+            let cache = (raw.len() <= BUDGET && headers.get(UDS_STORE).is_some_and(|v| v == "1"))
+                .then(|| raw.clone());
+            let response = respond(&state, raw).await.into_response();
+            admission.finish(finish(bases, response, cache).await)
+        }
+        Ok(None) => (
+            StatusCode::CONFLICT,
+            [(UDS_MISS, "1"), (UPSTREAM_SENT, UpstreamSent::No.header_value())],
+            axum::Json(serde_json::json!({"error": {"code": "local_base_unavailable", "message": "local base unavailable"}})),
+        )
+            .into_response(),
+        Err(error) => ApiError(error).into_response(),
     };
     response
         .headers_mut()
@@ -145,18 +157,19 @@ pub(crate) async fn responses(
     Ok(response)
 }
 
-async fn dispatch(
-    state: AppState,
-    headers: HeaderMap,
+/// 只有合法的增量請求找不到基底時才回傳 None。
+async fn decode(
+    bases: &Bases,
+    headers: &HeaderMap,
     data: Bytes,
+    limit: usize,
     permit: tokio::sync::OwnedSemaphorePermit,
     mut admission: crate::admission::RequestPermit,
-) -> Result<Response, ApiError> {
-    let limit = state.body_limit();
+) -> Result<Option<(Bytes, crate::admission::RequestPermit)>, KernelError> {
     let gzip = match headers.get("content-encoding").map(HeaderValue::as_bytes) {
         None | Some(b"identity") => false,
         Some(b"gzip") => true,
-        _ => return Err(invalid().into()),
+        _ => return Err(invalid()),
     };
     let copy = match (headers.get(UDS_BASE), headers.get(UDS_COPY)) {
         (None, None) => None,
@@ -167,7 +180,7 @@ async fn dispatch(
                     .bytes()
                     .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
             {
-                return Err(invalid().into());
+                return Err(invalid());
             }
             let mut parts = range.to_str().map_err(|_| invalid())?.split(',');
             let mut next = || {
@@ -178,19 +191,14 @@ async fn dispatch(
             };
             let (offset, insert, count) = (next()?, next()?, next()?);
             if parts.next().is_some() || count == 0 {
-                return Err(invalid().into());
+                return Err(invalid());
             }
-            let Some(base) = state.packed().get(key) else {
-                return Ok((
-                    StatusCode::CONFLICT,
-                    [(UDS_MISS, "1"), (UPSTREAM_SENT, UpstreamSent::No.header_value())],
-                    axum::Json(serde_json::json!({"error": {"code": "local_base_unavailable", "message": "local base unavailable"}})),
-                )
-                    .into_response());
+            let Some(base) = bases.get(key) else {
+                return Ok(None);
             };
             Some((base, offset, insert, count))
         }
-        _ => return Err(invalid().into()),
+        _ => return Err(invalid()),
     };
     let (raw, admission) = tokio::task::spawn_blocking(move || {
         let _permit = permit;
@@ -198,21 +206,21 @@ async fn dispatch(
     })
     .await
     .map_err(|_| invalid())??;
-    let cache =
-        (raw.len() <= BUDGET && headers.get(UDS_STORE).is_some_and(|v| v == "1")).then(|| raw.clone());
-    let mut response = match routes::respond(state.clone(), raw).await {
-        Ok(response) => response,
-        Err(error) => error.into_response(),
-    };
+    Ok(Some((raw, admission)))
+}
+
+async fn finish(bases: &Arc<Bases>, mut response: Response, cache: Option<Bytes>) -> Response {
     response.headers_mut().remove(UDS_MISS);
     response.headers_mut().remove(UDS_BASE);
     if response.status().is_success()
         && let Some(bytes) = cache
-        && let Ok(Some(key)) = tokio::task::spawn_blocking(move || state.packed().store(bytes)).await
     {
-        response.headers_mut().insert(UDS_BASE, key);
+        let bases = Arc::clone(bases);
+        if let Ok(Some(key)) = tokio::task::spawn_blocking(move || bases.store(bytes)).await {
+            response.headers_mut().insert(UDS_BASE, key);
+        }
     }
-    Ok(admission.finish(response))
+    response
 }
 
 #[cfg(test)]
@@ -280,6 +288,30 @@ mod tests {
         let mut data = gzip(b"{}");
         data.pop();
         assert!(expand(data.into(), true, None, 16, |_| Ok(())).is_err());
+    }
+
+    #[tokio::test]
+    async fn only_successful_requested_stores_publish_a_local_base() {
+        let bases = Arc::new(Bases::default());
+        let bytes = Bytes::from_static(b"requested base");
+        for (status, cache) in [
+            (StatusCode::BAD_GATEWAY, Some(bytes.clone())),
+            (StatusCode::OK, None),
+            (StatusCode::OK, Some(bytes.clone())),
+        ] {
+            let upstream = (status, [(UDS_MISS, "1"), (UDS_BASE, "upstream")]).into_response();
+            let store = status.is_success() && cache.is_some();
+            let response = finish(&bases, upstream, cache).await;
+            assert_eq!(response.status(), status);
+            assert!(!response.headers().contains_key(UDS_MISS));
+            if store {
+                let key = response.headers()[UDS_BASE].to_str().unwrap();
+                assert_eq!(bases.get(key), Some(bytes.clone()));
+            } else {
+                assert!(!response.headers().contains_key(UDS_BASE));
+                assert!(bases.entries.lock().unwrap().is_empty());
+            }
+        }
     }
 
     #[test]

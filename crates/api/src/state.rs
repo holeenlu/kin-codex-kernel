@@ -45,7 +45,7 @@ pub(crate) enum Mode {
 struct Inner {
     mode: Mode,
     admission: crate::admission::Admission,
-    packed: crate::packed::Bases,
+    packed: Arc<crate::packed::Bases>,
     build: BuildInfo,
     /// 在途請求：`request_id` → （登記序號, 取消訊號），供 `POST /internal/v1/cancel` 使用。
     inflight: Mutex<HashMap<String, Entry>>,
@@ -110,7 +110,7 @@ impl AppState {
             inner: Arc::new(Inner {
                 mode,
                 admission: crate::admission::Admission::new(limits),
-                packed: crate::packed::Bases::default(),
+                packed: Arc::default(),
                 build,
                 inflight: Mutex::new(HashMap::new()),
                 next_seq: AtomicU64::new(1),
@@ -122,7 +122,7 @@ impl AppState {
         &self.inner.admission
     }
 
-    pub(crate) fn packed(&self) -> &crate::packed::Bases {
+    pub(crate) fn packed(&self) -> &Arc<crate::packed::Bases> {
         &self.inner.packed
     }
 
