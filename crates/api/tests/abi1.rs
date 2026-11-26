@@ -72,6 +72,30 @@ fn authed(method: &str, path: &str, body: Body) -> Request<Body> {
 }
 
 #[tokio::test]
+async fn packed_errors_distinguish_a_missing_base_from_invalid_input() {
+    let digest = "1".repeat(64);
+    for (key, copy, size, status, code) in [
+        (digest.as_str(), "0,0,1", 0, 409, "local_base_unavailable"),
+        ("bad-key", "0,0,1", 0, 400, "invalid_request"),
+        (digest.as_str(), "0,0,0", 0, 400, "invalid_request"),
+        (digest.as_str(), "0,0,1", 17, 413, "body_too_large"),
+    ] {
+        let mut req = authed(
+            "POST",
+            "/internal/v1/codex/responses/packed",
+            Body::from(vec![0; size]),
+        );
+        req.headers_mut().insert("x-kin-uds-base", key.parse().unwrap());
+        req.headers_mut().insert("x-kin-uds-copy", copy.parse().unwrap());
+        let (actual, headers, body) = call(app(16), req).await;
+        assert_eq!(actual, status);
+        assert_eq!(body["error"]["code"], code);
+        assert_eq!(headers[UPSTREAM_SENT], "0");
+        assert_eq!(headers.contains_key("x-kin-uds-miss"), status == 409);
+    }
+}
+
+#[tokio::test]
 async fn every_endpoint_requires_the_internal_token() {
     for (method, path) in [
         ("GET", "/internal/health"),

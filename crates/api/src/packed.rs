@@ -153,6 +153,13 @@ async fn dispatch(
         (None, None) => None,
         (Some(key), Some(range)) => {
             let key = key.to_str().map_err(|_| invalid())?;
+            if key.len() != 64
+                || !key
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            {
+                return Err(invalid().into());
+            }
             let mut parts = range.to_str().map_err(|_| invalid())?.split(',');
             let mut next = || {
                 parts
@@ -168,7 +175,7 @@ async fn dispatch(
                 return Ok((
                     StatusCode::CONFLICT,
                     [(UDS_MISS, "1"), (UPSTREAM_SENT, UpstreamSent::No.header_value())],
-                    "local base unavailable",
+                    axum::Json(serde_json::json!({"error": {"code": "local_base_unavailable", "message": "local base unavailable"}})),
                 )
                     .into_response());
             };
