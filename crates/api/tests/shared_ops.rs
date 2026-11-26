@@ -106,13 +106,20 @@ async fn start_fake() -> (String, Fake) {
 }
 
 fn kernel(base: &str) -> axum::Router {
-    let raw = json!({
+    kernel_with(base, &json!({}))
+}
+
+fn kernel_with(base: &str, options: &Value) -> axum::Router {
+    let mut raw = json!({
         "socket_path": "/unused/kernel.sock",
         "internal_token": TOKEN,
         "test_endpoints": true,
         "chatgpt_base_url": format!("{base}/backend-api/codex"),
         "oauth_token_url": format!("{base}/oauth/token"),
     });
+    raw.as_object_mut()
+        .unwrap()
+        .extend(options.as_object().unwrap().clone());
     let config = SharedConfig::from_slice(&serde_json::to_vec(&raw).unwrap()).unwrap();
     router(AppState::shared(config, build()))
 }
@@ -656,4 +663,39 @@ async fn refresh_classifies_an_error_as_soon_as_the_excerpt_is_full() {
     .unwrap();
     assert_eq!(status, StatusCode::UNAUTHORIZED, "{body}");
     assert_eq!(body["error"]["code"], "reauth_required");
+}
+
+#[tokio::test]
+async fn saturated_ingress_rejects_before_reading_and_keeps_health_available() {
+    let app = kernel_with("http://127.0.0.1", &json!({"ingress_limits":{"requests":1}}));
+    let (started, waiting) = tokio::sync::oneshot::channel();
+    let slow = stream::once(async move {
+        let _ = started.send(());
+        std::future::pending::<Result<Bytes, std::io::Error>>().await
+    });
+    let request = |body| {
+        Request::post("/internal/v1/codex/responses")
+            .header(INTERNAL_TOKEN, TOKEN)
+            .body(body)
+            .unwrap()
+    };
+    let held = tokio::spawn(app.clone().oneshot(request(Body::from_stream(slow))));
+    waiting.await.unwrap();
+    let response = app.clone().oneshot(request(Body::from_stream(stream::pending::<
+        Result<Bytes, std::io::Error>,
+    >())));
+    let rejected = tokio::time::timeout(Duration::from_secs(1), response)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(rejected.headers()["x-kin-upstream-sent"], "0");
+    assert_eq!(
+        call(&app, "GET", "/internal/health", &json!({})).await.0,
+        StatusCode::OK
+    );
+    held.abort();
+    let _ = held.await;
+    let response = app.oneshot(request(Body::from("invalid json"))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }

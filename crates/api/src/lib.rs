@@ -4,6 +4,7 @@
 //! 不放業務邏輯；推理、帳號、憑據等功能日後由各自的 crate 實作，透過 [`AppState`] 注入。
 
 mod accounts;
+mod admission;
 mod auth;
 mod credential;
 mod error;

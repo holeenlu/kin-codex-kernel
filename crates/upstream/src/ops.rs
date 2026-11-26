@@ -75,7 +75,7 @@ impl Op {
         }
     }
 
-    const fn images(self) -> bool {
+    pub const fn images(self) -> bool {
         matches!(self, Self::ImagesGenerate | Self::ImagesEdit)
     }
 }

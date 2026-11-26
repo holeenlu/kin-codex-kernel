@@ -275,9 +275,8 @@ async fn operation(
     let (registry, _) = registry(&state)?;
     // 圖片編輯帶參考圖，本體可能很大：與推理相同，先以登錄中最大的帳號上限讀入，取得帳號後再比對它自己的上限。
     let limit = usize::try_from(registry.max_request_bytes()).unwrap_or(usize::MAX);
-    let raw = to_bytes(body, limit)
-        .await
-        .map_err(|_| KernelError::BodyTooLarge)?;
+    let mut permit = state.admission().enter(op.images())?;
+    let raw = permit.read(body, limit).await?;
     let request: OperationRequest =
         serde_json::from_slice(&raw).map_err(|err| KernelError::InvalidBody(err.to_string()))?;
     let view = registry.account(&AccountBinding {
@@ -314,7 +313,7 @@ async fn operation(
         UPSTREAM_SENT,
         HeaderValue::from_static(UpstreamSent::Yes.header_value()),
     );
-    Ok(response)
+    Ok(permit.finish(response))
 }
 
 /// `POST /internal/v1/accounts/{ref}/ops/refresh`：控制面要求換票。只回結果，不回任何 token；

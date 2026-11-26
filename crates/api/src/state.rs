@@ -44,6 +44,7 @@ pub(crate) enum Mode {
 #[derive(Debug)]
 struct Inner {
     mode: Mode,
+    admission: crate::admission::Admission,
     packed: crate::packed::Bases,
     build: BuildInfo,
     /// 在途請求：`request_id` → （登記序號, 取消訊號），供 `POST /internal/v1/cancel` 使用。
@@ -101,15 +102,24 @@ impl AppState {
     }
 
     fn with_mode(mode: Mode, build: BuildInfo) -> Self {
+        let limits = match &mode {
+            Mode::Single { config, .. } => config.ingress_limits,
+            Mode::Shared { config, .. } => config.ingress_limits,
+        };
         Self {
             inner: Arc::new(Inner {
                 mode,
+                admission: crate::admission::Admission::new(limits),
                 packed: crate::packed::Bases::default(),
                 build,
                 inflight: Mutex::new(HashMap::new()),
                 next_seq: AtomicU64::new(1),
             }),
         }
+    }
+
+    pub(crate) fn admission(&self) -> &crate::admission::Admission {
+        &self.inner.admission
     }
 
     pub(crate) fn packed(&self) -> &crate::packed::Bases {

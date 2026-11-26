@@ -35,6 +35,25 @@ pub struct TelemetryRuntime {
     pub runtime_arch: String,
 }
 
+/// 程序內業務請求的資源上限。健康、取消與登錄命令有獨立入口。
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct IngressLimits {
+    pub requests: std::num::NonZeroU16,
+    pub body_mib: std::num::NonZeroU16,
+    pub images: std::num::NonZeroU16,
+}
+
+impl Default for IngressLimits {
+    fn default() -> Self {
+        Self {
+            requests: std::num::NonZeroU16::new(128).unwrap_or(std::num::NonZeroU16::MIN),
+            body_mib: std::num::NonZeroU16::new(256).unwrap_or(std::num::NonZeroU16::MIN),
+            images: std::num::NonZeroU16::new(4).unwrap_or(std::num::NonZeroU16::MIN),
+        }
+    }
+}
+
 /// 實體代理的資源限制。0 表示不限制；部署依共用出口容量設定，不限制帳號准入。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(default)]
@@ -70,6 +89,8 @@ pub struct SingleAccountConfig {
     pub internal_token: String,
     #[serde(default)]
     pub ws_limits: WsLimits,
+    #[serde(default)]
+    pub ingress_limits: IngressLimits,
     #[serde(default)]
     pub max_request_bytes: u64,
     #[serde(default)]
@@ -156,6 +177,8 @@ pub struct SharedConfig {
     pub internal_token: String,
     #[serde(default)]
     pub ws_limits: WsLimits,
+    #[serde(default)]
+    pub ingress_limits: IngressLimits,
     /// 登錄的帳號數上限，超過時 PUT 與 reconcile 回 `invalid_request`。
     #[serde(default = "default_max_accounts")]
     pub max_accounts: usize,

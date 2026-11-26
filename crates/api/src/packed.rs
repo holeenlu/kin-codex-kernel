@@ -4,7 +4,7 @@ use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use axum::body::{Body, Bytes, to_bytes};
+use axum::body::{Body, Bytes};
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -123,11 +123,10 @@ pub(crate) async fn responses(
         .try_acquire_owned()
         .map_err(|_| KernelError::AccountBusy(state.label().to_owned()))?;
     let limit = state.body_limit();
-    let data = to_bytes(body, limit)
-        .await
-        .map_err(|_| KernelError::BodyTooLarge)?;
+    let mut admission = state.admission().enter(false)?;
+    let data = admission.read(body, limit).await?;
     let received = data.len();
-    let mut response = match dispatch(state, headers, data, permit).await {
+    let mut response = match dispatch(state, headers, data, permit, admission).await {
         Ok(response) => response,
         Err(error) => error.into_response(),
     };
@@ -142,6 +141,7 @@ async fn dispatch(
     headers: HeaderMap,
     data: Bytes,
     permit: tokio::sync::OwnedSemaphorePermit,
+    mut admission: crate::admission::RequestPermit,
 ) -> Result<Response, ApiError> {
     let limit = state.body_limit();
     let gzip = match headers.get("content-encoding").map(HeaderValue::as_bytes) {
@@ -183,9 +183,18 @@ async fn dispatch(
         }
         _ => return Err(invalid().into()),
     };
-    let raw = tokio::task::spawn_blocking(move || {
+    let received = data.len();
+    if gzip || copy.is_some() {
+        let expanded = if gzip {
+            limit
+        } else {
+            received.saturating_add(copy.as_ref().map_or(0, |c| c.3))
+        };
+        admission.reserve(received.saturating_add(expanded))?;
+    }
+    let (raw, admission) = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        expand(data, gzip, copy, limit)
+        expand(data, gzip, copy, limit).map(|raw| (raw, admission))
     })
     .await
     .map_err(|_| invalid())??;
@@ -203,7 +212,7 @@ async fn dispatch(
     {
         response.headers_mut().insert(UDS_BASE, key);
     }
-    Ok(response)
+    Ok(admission.finish(response))
 }
 
 #[cfg(test)]

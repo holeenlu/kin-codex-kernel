@@ -21,6 +21,8 @@ pub enum ErrorKind {
 pub enum KernelError {
     #[error("internal token required")]
     Unauthorized,
+    #[error("kernel request capacity exhausted")]
+    KernelBusy,
     #[error("request body exceeds max_request_bytes")]
     BodyTooLarge,
     #[error("request body is not valid: {0}")]
@@ -162,7 +164,7 @@ impl KernelError {
             Self::InvalidBody(_) | Self::WebsocketPolicy { .. } => 400,
             Self::NotFound => 404,
             Self::NotImplemented(_) => 501,
-            Self::NoCredential => 503,
+            Self::NoCredential | Self::KernelBusy => 503,
             Self::InvalidCredential(_) | Self::UpstreamTransport { .. } => 502,
             Self::Upstream(failure) => failure.status,
             Self::UpstreamEvent { status, .. } => *status,
@@ -190,6 +192,7 @@ impl KernelError {
             Self::NotFound => "not_found",
             Self::NotImplemented(_) => "not_implemented",
             Self::NoCredential => "no_credential",
+            Self::KernelBusy => "kernel_busy",
             Self::InvalidCredential(_) => "invalid_json",
             Self::UpstreamTransport { .. } => "upstream_transport",
             Self::Upstream(failure) => failure.code(),
@@ -225,6 +228,7 @@ impl KernelError {
             | Self::WebsocketHandshakeRateLimited { .. }
             | Self::Upstream(_)
             | Self::UpstreamEvent { .. }
+            | Self::KernelBusy
             | Self::RegistryNotReady
             | Self::AccountDisabled(_)
             | Self::AccountGenerationMismatch { .. }
@@ -248,6 +252,7 @@ impl KernelError {
             | Self::NotImplemented(_)
             | Self::NoCredential
             | Self::InvalidCredential(_)
+            | Self::KernelBusy
             | Self::RegistryNotReady
             | Self::AccountUnknown(_)
             | Self::AccountDisabled(_)

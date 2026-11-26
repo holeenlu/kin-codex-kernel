@@ -133,10 +133,9 @@ async fn describe(State(state): State<AppState>) -> Json<Describe> {
 
 async fn responses(State(state): State<AppState>, body: Body) -> Result<Response, ApiError> {
     // 先讀完並檢查大小：超過上限一律回 413，不論內容為何。
-    let raw = to_bytes(body, state.body_limit())
-        .await
-        .map_err(|_| KernelError::BodyTooLarge)?;
-    respond(state, raw).await
+    let mut permit = state.admission().enter(false)?;
+    let raw = permit.read(body, state.body_limit()).await?;
+    Ok(permit.finish(respond(state, raw).await?))
 }
 
 pub(crate) async fn respond(state: AppState, raw: Bytes) -> Result<Response, ApiError> {
