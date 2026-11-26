@@ -153,3 +153,7 @@ CPR main 由 `21622eeacdab919013408a4b77f5536ed8888f32` 對齊至 `7e32ba5dc01c2
 ### 2026-11-25 晚間 main 雙來源同步
 
 CPR main 從 `7e32ba5dc01c2d62e0317c2d169fa7de67d6658b` 對齊至 `9469260dbae9fd31cf6e1233ca48f76dbfc116fb`（4 筆）。官方 Codex main 從 `ebd0765aafa255d63ebf690ebdffe0164dc14a0c` 對齊至 `077eab36fd4c43e075fe1f13d50e4d04b2d414ee`（5 筆）。九筆均無需移植。CPR 的工作區匿名化是閘道選配政策。官方的審核資訊與配額方案顯示分別屬於代理訊息及 TUI。逐提交處置見[晚間同步紀錄](docs/sync/2026-11-25-077eab36-main.md)。
+
+### 2026-11-26 main 雙來源同步
+
+CPR main 從 `9469260dbae9fd31cf6e1233ca48f76dbfc116fb` 對齊至 `20d04ae57abf61ffc7c176eb73730577aaf1b0af`（15 筆）。官方 Codex main 從 `077eab36fd4c43e075fe1f13d50e4d04b2d414ee` 對齊至 `5148e3d6421c3adb9991b712b85f973ac33b9e50`（48 筆）。本輪無需移植。核對了帳號背景操作身分、工作區隱私規則、HTTP 本體日誌、Guardian 輸入與 Bazel zstd 的作用範圍。見[逐提交處置](docs/sync/2026-11-26-main.md)。
