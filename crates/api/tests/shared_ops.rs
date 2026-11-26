@@ -734,7 +734,7 @@ async fn a_failed_writeback_repairs_without_another_token_exchange() {
     let uri = "/internal/v1/accounts/a/ops/refresh";
     let task = {
         let app = app.clone();
-        tokio::spawn(async move { call(&app, "POST", uri, &json!({})).await })
+        tokio::spawn(async move { call(&app, "POST", uri, &json!({"env_generation":1})).await })
     };
     tokio::time::timeout(Duration::from_secs(3), async {
         while fake.token_calls.load(Ordering::SeqCst) == 0 {
@@ -754,7 +754,10 @@ async fn a_failed_writeback_repairs_without_another_token_exchange() {
         call(&app, "GET", health, &Value::Null).await.1["credential_writeback_pending"],
         true
     );
-    assert_eq!(call(&app, "POST", uri, &json!({})).await.0, StatusCode::OK);
+    assert_eq!(
+        call(&app, "POST", uri, &json!({"env_generation":1})).await.0,
+        StatusCode::OK
+    );
     assert_eq!(
         call(&app, "GET", health, &Value::Null).await.1["credential_writeback_pending"],
         false
