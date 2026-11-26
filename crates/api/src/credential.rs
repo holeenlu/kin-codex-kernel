@@ -65,6 +65,7 @@ pub(crate) struct AccountAuth {
     refresh: Arc<tokio::sync::Mutex<()>>,
     /// 寫憑據檔的鎖（刷新提交與匯入）。
     write: tokio::sync::Mutex<()>,
+    writer: tokio::sync::Mutex<Weak<std::fs::File>>,
     state: Mutex<AuthState>,
 }
 
@@ -84,11 +85,16 @@ struct AuthState {
 }
 
 /// 換到卻沒寫進檔案的票與當時檔案的代次。不輸出內容。
-struct Unwritten(u64, Refreshed);
+struct Unwritten {
+    key: Option<stored::AccountKey>,
+    consumed: Option<String>,
+    tokens: Refreshed,
+    _owner: Arc<std::fs::File>,
+}
 
 impl std::fmt::Debug for Unwritten {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Unwritten(generation {})", self.0)
+        f.write_str("Unwritten")
     }
 }
 
@@ -148,6 +154,38 @@ pub(crate) async fn wait_for_refreshes(limit: Duration) {
 }
 
 impl AccountAuth {
+    /// 同一程序內允許匯入與換票重疊；其他程序必須等這批寫入完成才可接管。
+    async fn own_writer(&self, path: &Path) -> Result<Arc<std::fs::File>, KernelError> {
+        let mut slot = self.writer.lock().await;
+        if let Some(owner) = slot.upgrade() {
+            return Ok(owner);
+        }
+        let parent = path.parent().filter(|dir| !dir.as_os_str().is_empty());
+        let io = |err| KernelError::InvalidCredential(format!("credential writer lock: {err}"));
+        if let Some(dir) = parent {
+            tokio::fs::create_dir_all(dir).await.map_err(io)?;
+        }
+        let mut name = path.as_os_str().to_owned();
+        name.push(".writer.lock");
+        let file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .open(name)
+            .await
+            .map_err(io)?
+            .into_std()
+            .await;
+        file.try_lock().map_err(|err| match err {
+            std::fs::TryLockError::WouldBlock => KernelError::KernelBusy,
+            std::fs::TryLockError::Error(err) => io(err),
+        })?;
+        let owner = Arc::new(file);
+        *slot = Arc::downgrade(&owner);
+        Ok(owner)
+    }
+
     fn state(&self) -> MutexGuard<'_, AuthState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -185,6 +223,10 @@ impl AccountAuth {
         self.state().profile.clone()
     }
 
+    pub(crate) fn needs_writeback(&self) -> bool {
+        self.state().unwritten.is_some()
+    }
+
     fn in_backoff(&self) -> bool {
         self.state()
             .retry_after
@@ -220,16 +262,12 @@ impl AccountAuth {
             .unwrap_or_default()
     }
 
-    fn keep_unwritten(&self, generation: u64, tokens: Refreshed) {
-        self.state().unwritten = Some(Unwritten(generation, tokens));
-    }
-
-    /// 上次換到卻沒寫進去的票；檔案已經不是當時的代次就作廢。
-    fn take_unwritten(&self, generation: u64) -> Option<Refreshed> {
-        match self.state().unwritten.take() {
-            Some(Unwritten(seen, tokens)) if seen == generation => Some(tokens),
-            _ => None,
-        }
+    fn take_unwritten(&self, current: &Stored) -> Option<Refreshed> {
+        self.state()
+            .unwritten
+            .take()
+            .filter(|pending| pending.key == current.key && pending.consumed == current.refresh_token)
+            .map(|pending| pending.tokens)
     }
 
     fn mark_reauth(&self, code: &str) {
@@ -243,7 +281,7 @@ impl AccountAuth {
         state.failures.clear();
         state.retry_after = None;
         state.failing_since = None;
-        state.unwritten = None;
+        // 相同憑據的重新匯入也會遞增代次；補寫時依身分與已消耗的票核對。
     }
 }
 
@@ -318,6 +356,7 @@ async fn refresh_detached(
         Some(guard) => guard,
         None => Arc::clone(&auth.refresh).lock_owned().await,
     };
+    let owner = auth.own_writer(&env.credential_path).await?;
     let current = stored::read(&env.credential_path)
         .await?
         .ok_or(KernelError::NoCredential)?;
@@ -328,8 +367,8 @@ async fn refresh_detached(
         return Err(KernelError::ReauthRequired(account_ref.to_owned()));
     }
     // 上次換到卻沒寫進去的票：檔案裡的 refresh token 已被消耗，先補寫，不再換票。
-    if let Some(tokens) = auth.take_unwritten(current.generation) {
-        return commit(&env, &auth, &current, tokens, reason).await;
+    if let Some(tokens) = auth.take_unwritten(&current) {
+        return commit(&env, &auth, &current, tokens, reason, owner).await;
     }
     // 控制面明確要求的換票（ops/refresh）不受退避限制；其餘（含 401 復原）都要守退避。
     if reason != RefreshReason::Forced && auth.in_backoff() {
@@ -346,7 +385,7 @@ async fn refresh_detached(
         }),
     };
     match result {
-        Ok(tokens) => commit(&env, &auth, &current, tokens, reason).await,
+        Ok(tokens) => commit(&env, &auth, &current, tokens, reason, owner).await,
         Err(err) => commit_failure(&env, &auth, &current, err).await,
     }
 }
@@ -405,6 +444,7 @@ async fn commit(
     current: &Stored,
     tokens: Refreshed,
     reason: RefreshReason,
+    owner: Arc<std::fs::File>,
 ) -> Result<Stored, KernelError> {
     let account_ref = env.account_ref.as_str();
     let _write = auth.write.lock().await;
@@ -438,8 +478,13 @@ async fn commit(
             }
             Err(CommitError::Io(err)) => {
                 // token 端點已輪換：檔案裡的 refresh token 已被消耗。新票留在記憶體，下次換票前補寫。
-                tracing::error!(account = account_ref, error = %err, "refreshed credential could not be written; kept in memory");
-                auth.keep_unwritten(current.generation, tokens);
+                tracing::error!(event = "credential_writeback_pending", account = account_ref, generation = current.generation, error = %err, "refreshed credential could not be written; kept in memory");
+                auth.state().unwritten = Some(Unwritten {
+                    key: current.key.clone(),
+                    consumed: current.refresh_token.clone(),
+                    tokens,
+                    _owner: owner,
+                });
                 return Err(KernelError::RefreshFailed {
                     account_ref: account_ref.to_owned(),
                     message: err.to_string(),
@@ -596,7 +641,8 @@ pub(crate) async fn refresh_in_background(state: AppState, shutdown: Cancellatio
                 .state()
                 .last_used
                 .is_none_or(|used| used.elapsed() > RECENT_USE);
-            if !view.env.enabled || idle || auth.failing() || auth.in_backoff() {
+            let pending = auth.needs_writeback();
+            if !view.env.enabled || auth.failing() || (!pending && (idle || auth.in_backoff())) {
                 continue;
             }
             // 先拿單飛鎖再確認帳號仍啟用：控制面停用帳號後，以帳號健康的 `refreshing`（鎖被持有）
@@ -614,6 +660,24 @@ pub(crate) async fn refresh_in_background(state: AppState, shutdown: Cancellatio
                 continue;
             };
             let window = REFRESH_WINDOW_SECS + spread(&view.env.account_ref);
+            if pending {
+                let env = view.env.clone();
+                let auth = Arc::clone(auth);
+                let active = RefreshInFlight::start();
+                tokio::spawn(async move {
+                    let (_active, _single) = (active, single);
+                    let Ok(owner) = auth.own_writer(&env.credential_path).await else {
+                        return;
+                    };
+                    if let Some(tokens) = auth.take_unwritten(&current)
+                        && let Err(err) =
+                            commit(&env, &auth, &current, tokens, RefreshReason::Scheduled, owner).await
+                    {
+                        view.note_error(&err);
+                    }
+                });
+                continue;
+            }
             let Some(reason) = needs_refresh(&current, window) else {
                 continue;
             };
@@ -644,6 +708,7 @@ pub(crate) async fn import(
     credential: serde_json::Map<String, serde_json::Value>,
     expected: u64,
 ) -> Result<u64, KernelError> {
+    let _owner = auth.own_writer(&env.credential_path).await?;
     let _write = auth.write.lock().await;
     let generation = stored::import(&env.credential_path, credential, expected).await?;
     auth.reset();
@@ -711,6 +776,23 @@ mod tests {
                 assert!(auth.state().failures.is_empty());
             }
         }
+    }
+
+    #[tokio::test]
+    async fn overlapping_writers_share_ownership_only_inside_one_auth() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("credential.json");
+        let first = AccountAuth::default();
+        let second = AccountAuth::default();
+        let refresh = first.own_writer(&path).await.unwrap();
+        let import = first.own_writer(&path).await.unwrap();
+        drop(refresh);
+        assert!(matches!(
+            second.own_writer(&path).await,
+            Err(KernelError::KernelBusy)
+        ));
+        drop(import);
+        assert!(second.own_writer(&path).await.is_ok());
     }
 
     #[test]

@@ -182,6 +182,7 @@ async fn account_health(
     };
     Ok(Json(AccountHealth {
         ok: !failing && view.state == AccountState::Ready,
+        credential_writeback_pending: view.ext().needs_writeback(),
         account_ref,
         state,
         env_generation: view.env.env_generation,

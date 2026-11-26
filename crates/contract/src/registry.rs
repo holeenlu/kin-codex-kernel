@@ -229,6 +229,7 @@ pub struct ReconcileAck {
 /// `GET /internal/v1/accounts/{ref}/health` 的回應。不含任何秘密。
 #[derive(Debug, Clone, Serialize)]
 pub struct AccountHealth {
+    pub credential_writeback_pending: bool,
     pub ok: bool,
     #[serde(rename = "ref")]
     pub account_ref: String,
@@ -320,6 +321,7 @@ mod tests {
     #[test]
     fn serializes_ref_and_never_a_status_field() {
         let health = AccountHealth {
+            credential_writeback_pending: false,
             ok: true,
             account_ref: "vm-1".to_owned(),
             state: AccountState::Ready,
