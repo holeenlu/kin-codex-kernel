@@ -335,7 +335,8 @@ async fn packed_limits_ingress_and_receipts_include_misses() {
     assert_eq!(headers[UPSTREAM_SENT], "0");
     drop(pending);
     let mut miss = authed("POST", PATH, Body::from("abc"));
-    miss.headers_mut().insert(UDS_BASE, "absent".parse().unwrap());
+    miss.headers_mut()
+        .insert(UDS_BASE, "a".repeat(64).parse().unwrap());
     miss.headers_mut().insert(UDS_COPY, "0,0,1".parse().unwrap());
     let (status, headers, _) = call(app, miss).await;
     assert_eq!(status, StatusCode::CONFLICT);
