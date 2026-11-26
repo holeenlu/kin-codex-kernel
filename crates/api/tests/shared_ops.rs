@@ -612,7 +612,13 @@ async fn oversized_refresh_success_leaves_the_stored_credential_untouched() {
             "refresh_token": "replacement", "padding": "x".repeat(256 * 1024)
         }),
     ));
-    let (status, body) = call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})).await;
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/internal/v1/accounts/a/ops/refresh",
+        &json!({"env_generation":1}),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_GATEWAY, "{body}");
     assert_eq!(body["error"]["code"], "refresh_failed");
     assert_eq!(stored_refresh_token(&path), "rt-1");
@@ -639,7 +645,12 @@ async fn refresh_classifies_an_error_as_soon_as_the_excerpt_is_full() {
     reconcile(&app, vec![account("a", &path, &json!({}))]).await;
     let (status, body) = tokio::time::timeout(
         Duration::from_secs(2),
-        call(&app, "POST", "/internal/v1/accounts/a/ops/refresh", &json!({})),
+        call(
+            &app,
+            "POST",
+            "/internal/v1/accounts/a/ops/refresh",
+            &json!({"env_generation":1}),
+        ),
     )
     .await
     .unwrap();
