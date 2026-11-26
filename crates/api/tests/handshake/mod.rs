@@ -142,14 +142,13 @@ async fn explicit_opening_429_is_reported_without_http_fallback_or_replay() {
 }
 
 #[tokio::test]
-async fn rejected_reconnect_preserves_the_unknown_result_of_the_previous_create() {
+async fn ordinary_close_after_create_returns_unknown_without_another_handshake() {
     let (base, seen) = rejecting_upstream(429, Some(CloseCode::Normal)).await;
     let dir = tempfile::tempdir().unwrap();
     let response = kernel(&base, &dir).oneshot(envelope(false)).await.unwrap();
-    assert_eq!(response.status(), 429);
+    assert_eq!(response.status(), 502);
     assert_eq!(response.headers()["x-kin-upstream-sent"], "unknown");
-    assert_eq!(response.headers()["retry-after"], "73");
-    assert_eq!(*seen.methods.lock().unwrap(), [Method::GET, Method::GET]);
+    assert_eq!(*seen.methods.lock().unwrap(), [Method::GET]);
     assert_eq!(*seen.creates.lock().unwrap(), 1);
 }
 

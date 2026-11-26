@@ -513,33 +513,8 @@ async fn an_idle_connection_closed_by_the_upstream_is_replaced_transparently() {
 }
 
 #[tokio::test]
-async fn a_close_after_the_peer_read_the_create_is_sent_once_more_on_a_new_connection() {
-    // 與上游核心、官方 CLI 相同：上游以 Close 結束這條連線時，換新連線送完整本體一次。
-    let (base, seen) = start_ws_upstream(Mode::CloseBeforeReply).await;
-    let dir = tempfile::tempdir().unwrap();
-    let app = kernel(&base, &dir);
-    let first = app.clone().oneshot(envelope(true)).await.unwrap();
-    first.into_body().collect().await.unwrap();
-    let second = app.oneshot(envelope(true)).await.unwrap();
-    assert_eq!(second.status(), StatusCode::OK);
-    let fact: Value = serde_json::from_slice(second.headers()["x-tap-turn-timing"].as_bytes()).unwrap();
-    assert_eq!(fact["ws_reused"], false, "answered on the new connection");
-    assert_eq!(fact["ws_send_attempts"], 2);
-    assert_eq!(fact["request_mode"], "full_replay");
-    second.into_body().collect().await.unwrap();
-    let seen = seen.0.lock().unwrap();
-    assert_eq!(seen.len(), 2, "one new connection");
-    assert_eq!(
-        seen[0].1.len(),
-        2,
-        "the second create reached the closed connection"
-    );
-    assert_eq!(seen[1].1.len(), 1, "and was sent once more, only once");
-}
-
-#[tokio::test]
 async fn a_reused_socket_dropped_after_the_peer_read_the_create_never_replays() {
-    for mode in [Mode::DropBeforeReply] {
+    for mode in [Mode::CloseBeforeReply, Mode::DropBeforeReply] {
         let (base, seen) = start_ws_upstream(mode).await;
         let dir = tempfile::tempdir().unwrap();
         let app = kernel(&base, &dir);

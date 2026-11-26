@@ -6,7 +6,7 @@ HTTP 請求與 WebSocket 握手的 `x-codex-routing-hint` 取自本輪請求本�
 
 **原生續接。** 入口 WS 的每一輪，由控制面在內部 envelope 送 `options.ws_replay: {}`；只有同一條入口 WS 的歷史快取解析成功時，才填入 `previous_response_id`。無論如何，`body` 都保留展開後的完整輸入。核心只有取回同帳號、同會話、同握手設定的原連線，且上輪有已確認的完成終態（或明示 `interrupted` 並附完整最終 output）、回應 ID、完整先前輸入＋輸出前綴及輸入以外的設定均一致、確實有新增項目，才把 `previous_response_id` 和後綴送出。前綴及設定保存在記憶體的是 SHA-256，不額外留存全文；不忽略工具參數、加密推理或未知設定。欄位順序、數字寫法等保守比對可能降低命中率；稀疏終態只使用有完整連續索引的已完成項目。未命中增量時使用保存的完整本體；只有這類可獨立回放的輸入才允許送出前降級。HTTP 客戶端原有的明示續接另依其原契約。
 
-**重送界線。** 尚未送出推理，只做撥號／握手、或已在閒置探測發現斷線時，可以安全換線。首個文字事件前收到一般 Close，完整輸入可換一條新 WS 補送一次。上傳期間同步讀取上游，保留提早抵達的文字與控制幀順序。部分寫入時的一般 Close 視為送出狀態不明。首條文字前若收到 Close 1009（訊息過大），首次嘗試改以 HTTP 送完整輸入；預熱、缺少完整輸入或已經補送過的請求，直接回錯誤。已收到文字後的 1009 結束該輪，避免重複執行。若首個事件明確回報 `previous_response_not_found`，且 ID 是核心此輪產生的增量 ID，可在同一條線補送完整本體。寫入失敗、沒有 Close 的無聲斷線或取消都不是未執行證據，不另開 WS、不降級重播，錯誤標頭為 `x-kin-upstream-sent: unknown`。入口快取不存在時由控制面請客戶端重送全史。
+**重送界線。** 尚未送出推理，只做撥號／握手、或已在閒置探測發現斷線時，可以安全換線。一旦開始寫入 create，一般 Close 無法排除上游已接受推理。此時回 502、`x-kin-upstream-sent: unknown`，本輪停止發送。上傳期間同步讀取上游，保留提早抵達的文字與控制幀順序。部分寫入時的一般 Close 視為送出狀態不明。首條文字前若收到 Close 1009（訊息過大），首次嘗試改以 HTTP 送完整輸入；預熱、缺少完整輸入或已經補送過的請求，直接回錯誤。已收到文字後的 1009 結束該輪，避免重複執行。若首個事件明確回報 `previous_response_not_found`，且 ID 是核心此輪產生的增量 ID，可在同一條線補送完整本體。寫入失敗、沒有 Close 的無聲斷線或取消都不是未執行證據，不另開 WS、不降級重播，錯誤標頭為 `x-kin-upstream-sent: unknown`。入口快取不存在時由控制面請客戶端重送全史。
 
 **每筆怎麼查。** 控制面的 `hop_meta.codex_vm_timing.attempts[]` 以 `kernel_request_id` 對照核心的 `responses turn` 日誌。同一筆的 `upstream` 來自內部 `x-tap-turn-timing` 標頭；串流完成的觀測由同名 trailer 補齊，未讀完整時只能看到當時已有的值。該標頭與 trailer 不轉給外部客戶，不插入 SSE 計時事件。讀值時分開兩座時鐘：
 
@@ -23,7 +23,7 @@ HTTP 請求與 WebSocket 握手的 `x-codex-routing-hint` 取自本輪請求本�
 
 **模型目錄 ETag。** HTTP 成功回應保留上游的 `x-models-etag`。WS 在實體線首次接受生成時交付握手取得的 ETag，預熱會將它留給首輪生成。同一條線之後的回合只照常轉送當輪事件。新的握手有自己的 ETag，更新模型目錄由呼叫端決定。
 
-**失敗事實。** `x-kin-upstream-error` 是控制面使用的私有收據，stage 區分 HTTP（`http`）、WS 握手的明示 429（`websocket_handshake`）及 WS 首個錯誤事件（`websocket_first_event`）。收據保留明示 status、code、type、request_id、retry_after，缺值為 null。初次握手遇 429 時，即使是完整請求也不再握手或改送 HTTP；預熱同樣回原 429。此時 `x-kin-upstream-sent: 0` 指沒有送出模型請求；若前一次 create 寫出後未獲回應，換線才遇 429，則為 `unknown`；共享模式若先前已有業務 401 明確證實送達，換票重試的握手 429 不會把整輪改成未送出。首個 WS 事件若為 `invalid_request_error` 且狀態為 400 或未提供，回應保留上游的 `error` 物件，包括 `param`。缺少狀態時對呼叫端回 400，私有收據仍保留缺值。錯誤摘錄上限為 64 KiB；串流已開始時不改寫 HTTP 狀態。vm2api 不把這份收據轉給客戶端。
+**失敗事實。** `x-kin-upstream-error` 是控制面使用的私有收據，stage 區分 HTTP（`http`）、WS 握手的明示 429（`websocket_handshake`）及 WS 首個錯誤事件（`websocket_first_event`）。收據保留明示 status、code、type、request_id、retry_after，缺值為 null。初次握手遇 429 時，即使是完整請求也不再握手或改送 HTTP；預熱同樣回原 429。此時 `x-kin-upstream-sent: 0` 指沒有送出模型請求；共享模式若先前已有業務 401 明確證實送達，換票重試的握手 429 不會把整輪改成未送出。首個 WS 事件若為 `invalid_request_error` 且狀態為 400 或未提供，回應保留上游的 `error` 物件，包括 `param`。缺少狀態時對呼叫端回 400，私有收據仍保留缺值。錯誤摘錄上限為 64 KiB；串流已開始時不改寫 HTTP 狀態。vm2api 不把這份收據轉給客戶端。
 
 HTTP 推理或 WS 握手回 429 時，核心另行保留額度與點數標頭，包括 `x-codex-active-limit`、具名額度桶與各視窗重置時間。控制面使用標頭的原始名稱和值決定額度歸屬。上游拒絕的狀態、送出事實與重送判斷沿用前述契約。
 

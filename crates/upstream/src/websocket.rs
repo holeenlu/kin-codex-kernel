@@ -96,7 +96,6 @@ pub enum Outcome {
 enum Attempt {
     Initial,
     AfterCacheRejection,
-    AfterClose,
 }
 
 impl Attempt {
@@ -104,7 +103,6 @@ impl Attempt {
         match self {
             Self::Initial => UpstreamSent::No,
             Self::AfterCacheRejection => UpstreamSent::Yes,
-            Self::AfterClose => UpstreamSent::Unknown,
         }
     }
 }
@@ -335,7 +333,7 @@ impl WebsocketTransport {
         let (mut message, pending, mut mode) = continuation::prepare(body, hint, socket.previous.as_ref());
         // 首個文字事件前可恢復的情況見 docs/RESPONSES_TIMING.md。
         // - 上游明確拒絕由核心產生的續接 ID（`previous_response_not_found`）：同一條連線補送完整本體。
-        // - 上游送來 1009：完整輸入改走 HTTP 一次；其他 Close：與上游核心、官方 CLI 相同，換一條新連線送完整本體。沒有 Close 的斷線、
+        // - 上游送來 1009：完整輸入改走 HTTP 一次；一般 Close、無聲斷線及
         //   寫入失敗不重送（`unknown`），交給控制面與客戶端判斷。
         let mut attempt = Attempt::Initial;
         loop {
@@ -381,24 +379,7 @@ impl WebsocketTransport {
                         if policy.full() && attempt == Attempt::Initial {
                             return Ok(Outcome::Fallback(UpstreamSent::Yes));
                         }
-                        let sent = if attempt == Attempt::AfterClose { UpstreamSent::Unknown } else { UpstreamSent::Yes };
-                        return Err(policy.rejection(true, sent));
-                    }
-                    Ok(Next::Closed) if policy.full() && attempt == Attempt::Initial => {
-                        attempt = Attempt::AfterClose;
-                        drop(socket); // 先歸還已關閉連線持有的代理名額。
-                        socket = match self.connect_with_retry(&headers, cancel, timing, UpstreamSent::Unknown).await? {
-                            Ok(fresh) => fresh,
-                            // 第一次已經寫出：換線失敗不改走 HTTP（那會是第三次送出），結果不明。
-                            Err(_) => return Err(KernelError::UpstreamTransport{message:"websocket closed before the first event".to_owned(),sent:UpstreamSent::Unknown}),
-                        };
-                        mode = "full_replay";
-                        message = create_message(body);
-                        timing.update(|f| {
-                            f.ws_reused = Some(false);
-                            f.ws_deflate = Some(socket.deflate);
-                        });
-                        continue;
+                        return Err(policy.rejection(true, UpstreamSent::Yes));
                     }
                     Ok(Next::Closed|Next::Broken)=>return Err(KernelError::UpstreamTransport{message:"websocket closed before the first event".to_owned(),sent:UpstreamSent::Unknown}),
                 }
@@ -1177,7 +1158,6 @@ mod tests {
         for (attempt, sent) in [
             (Attempt::Initial, UpstreamSent::No),
             (Attempt::AfterCacheRejection, UpstreamSent::Yes),
-            (Attempt::AfterClose, UpstreamSent::Unknown),
         ] {
             assert_eq!(attempt.sent_before_upload(), sent);
         }
