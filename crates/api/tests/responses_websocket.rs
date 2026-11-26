@@ -201,11 +201,15 @@ fn kernel(base: &str, dir: &tempfile::TempDir) -> axum::Router {
 }
 
 fn envelope(stream: bool) -> Request<Body> {
+    identified_envelope(stream, "req-1")
+}
+
+fn identified_envelope(stream: bool, request_id: &str) -> Request<Body> {
     let body = format!(
         r#"{{"body":{{"model":"gpt-5.5","input":[],"stream":{stream}}},
         "headers":{{"session-id":"s1","x-codex-window-id":"s1:0",
         "x-codex-exclude-stream-fields":"delta.sequence_number,reasoning.added.encrypted_content"}},
-        "stream":{stream},"session":{{"session_id":"s1"}},"request_id":"req-1",
+        "stream":{stream},"session":{{"session_id":"s1"}},"request_id":"{request_id}",
         "options":{{"upstream_transport":"prefer_websocket"}}}}"#
     );
     Request::builder()
@@ -679,10 +683,12 @@ async fn concurrent_turns_of_one_session_keep_their_connections_for_the_next_tur
     let (base, seen) = start_ws_upstream(Mode::SlowReply).await;
     let dir = tempfile::tempdir().unwrap();
     let app = kernel(&base, &dir);
-    for _ in 0..2 {
+    for round in 0..2 {
         let (a, b) = tokio::join!(
-            app.clone().oneshot(envelope(true)),
-            app.clone().oneshot(envelope(true))
+            app.clone()
+                .oneshot(identified_envelope(true, &format!("a-{round}"))),
+            app.clone()
+                .oneshot(identified_envelope(true, &format!("b-{round}")))
         );
         let (a, b) = (a.unwrap(), b.unwrap());
         assert_eq!((a.status(), b.status()), (StatusCode::OK, StatusCode::OK));
