@@ -765,3 +765,48 @@ async fn a_failed_writeback_repairs_without_another_token_exchange() {
     assert_eq!(stored_refresh_token(&path), "rotated");
     assert_eq!(fake.token_calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn truncated_refresh_bodies_preserve_a_401_and_never_commit_a_partial_success() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    for (wire_status, expected, code, health) in [
+        (
+            "401 Unauthorized",
+            StatusCode::UNAUTHORIZED,
+            "reauth_required",
+            "reauth_required",
+        ),
+        ("200 OK", StatusCode::BAD_GATEWAY, "refresh_failed", "ok"),
+    ] {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let app = kernel(&format!("http://{}", listener.local_addr().unwrap()));
+        let provider = tokio::spawn(async move {
+            let (mut peer, _) = listener.accept().await.unwrap();
+            let mut request = [0; 1024];
+            assert!(peer.read(&mut request).await.unwrap() > 0);
+            // 正文是一份可解析的 JSON，但傳輸在宣告的長度之前結束。
+            let reply = format!(
+                "HTTP/1.1 {wire_status}\r\nContent-Length: 100\r\nConnection: close\r\n\r\n{{\"refresh_token\":\"replacement\"}}"
+            );
+            peer.write_all(reply.as_bytes()).await.unwrap();
+            peer.shutdown().await.unwrap();
+            tokio::io::copy(&mut peer, &mut tokio::io::sink()).await.unwrap();
+        });
+        let (_dir, path) = setup();
+        reconcile(&app, vec![account("a", &path, &json!({}))]).await;
+        let (status, body) = call(
+            &app,
+            "POST",
+            "/internal/v1/accounts/a/ops/refresh",
+            &json!({"env_generation": 1}),
+        )
+        .await;
+        assert_eq!(status, expected, "{body}");
+        assert_eq!(body["error"]["code"], code);
+        let (_, account) = call(&app, "GET", "/internal/v1/accounts/a/health", &Value::Null).await;
+        assert_eq!(account["credential"], health);
+        assert_eq!(stored_refresh_token(&path), "rt-1");
+        provider.await.unwrap();
+    }
+}

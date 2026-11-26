@@ -121,6 +121,20 @@ pub fn request_body(refresh_token: &str, reason: RefreshReason) -> Vec<u8> {
     serde_json::to_vec(&body).unwrap_or_default()
 }
 
+/// 錯誤正文只補充診斷；即使中途斷線，仍用已收到的 HTTP 狀態與摘要分類。
+async fn response_failure(mut response: reqwest::Response) -> RefreshError {
+    let status = response.status().as_u16();
+    let mut excerpt = Vec::new();
+    while excerpt.len() < ERROR_BODY_LIMIT {
+        let Ok(Some(chunk)) = response.chunk().await else {
+            break;
+        };
+        let take = chunk.len().min(ERROR_BODY_LIMIT - excerpt.len());
+        excerpt.extend_from_slice(&chunk[..take]);
+    }
+    classify(status, &String::from_utf8_lossy(&excerpt))
+}
+
 impl HttpUpstream {
     /// 用 refresh token 換新的 token。身分取自這次（或最近一次）推理請求的身分輸入（帳號環境與自訂 UA）。
     pub async fn refresh(
@@ -154,32 +168,21 @@ impl HttpUpstream {
                 },
                 message: err.without_url().to_string(),
             })?;
-        let status = response.status().as_u16();
-        let success = response.status().is_success();
-        let limit = if success {
-            TOKEN_BODY_LIMIT
-        } else {
-            ERROR_BODY_LIMIT
-        };
+        if !response.status().is_success() {
+            return Err(response_failure(response).await);
+        }
         let mut raw = Vec::new();
         while let Some(chunk) = response.chunk().await.map_err(|err| RefreshError::Transient {
             message: err.without_url().to_string(),
             sent: UpstreamSent::Unknown,
         })? {
-            let remaining = limit - raw.len();
-            if success && chunk.len() > remaining {
+            if chunk.len() > TOKEN_BODY_LIMIT - raw.len() {
                 return Err(RefreshError::Transient {
                     message: "token endpoint response exceeds the size limit".to_owned(),
                     sent: UpstreamSent::Yes,
                 });
             }
-            raw.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
-            if !success && raw.len() == limit {
-                break;
-            }
-        }
-        if !success {
-            return Err(classify(status, &String::from_utf8_lossy(&raw)));
+            raw.extend_from_slice(&chunk);
         }
         let parsed: TokenResponse = serde_json::from_slice(&raw).map_err(|_| RefreshError::Transient {
             message: "token endpoint answered an unreadable body".to_owned(),
