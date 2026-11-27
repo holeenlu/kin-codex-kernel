@@ -169,3 +169,7 @@ CPR main 從 `3da33389085386b790102ba4f86a8f4476a13c02` 對齊至 `8c742bd5939dd
 ### 2026-11-27 午間 main 雙來源同步
 
 CPR main 從 `8c742bd5939ddcd14d8e71da1f1bd30f968b892b` 對齊至 `42fdaecd7aae84c9dd74c8bbe4e032c1f4b29f8c`（7 筆），官方 Codex main 從 `b9e830fb986ae478ce59c3c97408bdfa1bd5ddab` 對齊至 `fe6dca34229d9db8f5be09f7dc4b99c2de9ee44e`（5 筆）。Kin 可依請求指定 HTTP；要讓 HTTP 入站的背景壓縮保留 HTTP，vm2api 仍需在入口選擇這項策略。官方五筆均屬終端與本機指令顯示。見[逐提交處置與傳輸差異](docs/sync/2026-11-27-fe6dca34-main.md)。
+
+### 2026-11-27 傍晚 main 雙來源同步
+
+CPR main 從 `42fdaecd7aae84c9dd74c8bbe4e032c1f4b29f8c` 對齊至 `51733141360da1197973a1ecf12b5a12a1ce1197`（16 筆），官方 Codex main 從 `fe6dca34229d9db8f5be09f7dc4b99c2de9ee44e` 對齊至 `afe555b9d3e95b4f58b247212565070f1555bc5d`（2 筆）。Kin 已在每條實體 WS 首次接受生成時交付握手 ETag，兩個品牌與 Kin 的出站白名單均保留完整事件。CPR 的平台設定與官方 TUI 變更無須移植。詳見[逐提交處置與驗證](docs/sync/2026-11-27-afe555b9-main.md)。
