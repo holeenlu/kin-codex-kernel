@@ -165,3 +165,7 @@ CPR main 從 `20d04ae57abf61ffc7c176eb73730577aaf1b0af` 對齊至 `3da3338908538
 ### 2026-11-27 main 雙來源同步
 
 CPR main 從 `3da33389085386b790102ba4f86a8f4476a13c02` 對齊至 `8c742bd5939ddcd14d8e71da1f1bd30f968b892b`（10 筆），官方 Codex main 從 `af71942309704997f4bdc86c020717646423c080` 對齊至 `b9e830fb986ae478ce59c3c97408bdfa1bd5ddab`（23 筆）。CPR 的原生協定路由、Antigravity 預熱與重連，以及官方的 Guardian 審查、工作區輸入與終端顯示均無需移植。見[逐提交處置與驗證](docs/sync/2026-11-27-main.md)。
+
+### 2026-11-27 午間 main 雙來源同步
+
+CPR main 從 `8c742bd5939ddcd14d8e71da1f1bd30f968b892b` 對齊至 `42fdaecd7aae84c9dd74c8bbe4e032c1f4b29f8c`（7 筆），官方 Codex main 從 `b9e830fb986ae478ce59c3c97408bdfa1bd5ddab` 對齊至 `fe6dca34229d9db8f5be09f7dc4b99c2de9ee44e`（5 筆）。Kin 可依請求指定 HTTP；要讓 HTTP 入站的背景壓縮保留 HTTP，vm2api 仍需在入口選擇這項策略。官方五筆均屬終端與本機指令顯示。見[逐提交處置與傳輸差異](docs/sync/2026-11-27-fe6dca34-main.md)。
